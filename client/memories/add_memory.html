@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Memory - MemoryBook</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/output.css">
+    <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Quicksand:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        html, body { font-family: 'Quicksand', sans-serif; } 
+        .font-kalam { font-family: 'Kalam', cursive !important; }
+        .blobs-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: #fafafa; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-[#F5F3FB] to-[#F4F8FD] min-h-screen">
+    <div class="blobs-bg"></div>
+    <div id="navbar-container"></div>
+    
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <div id="feedback" class="hidden mb-4"></div>
+        <div class="mb-8">
+            <h1 class="text-3xl font-semibold text-[#2D2A3D] mb-2">Create a New Memory</h1>
+            <p class="text-lg text-[#6B6B7D]">Capture a special moment with your friends</p>
+        </div>
+        <form id="memoryForm" class="grid lg:grid-cols-2 gap-8">
+            <div class="order-2 lg:order-1">
+                <div class="bg-white rounded-2xl p-6 shadow mb-6">
+                    <h3 class="text-xl font-semibold text-[#2D2A3D] mb-4">Add Media</h3>
+                    <video id="liveVideoPreview" class="w-full rounded-lg mb-4 hidden" autoplay muted playsinline></video>
+                    <div id="uploadArea" class="border-2 border-dashed border-[#D1C7EB] rounded-xl p-8 text-center">
+                        <div class="flex flex-col items-center">
+                            <i class="fas fa-cloud-upload-alt text-[#A394D4] text-4xl mb-4"></i>
+                            <p class="text-[#2D2A3D] font-medium mb-2">Drag & drop any file here</p>
+                            <p class="text-[#6B6B7D] text-sm mb-4">or click to browse or record</p>
+                            <label class="bg-[#8B7EC8] text-white px-4 py-2 rounded-lg hover:bg-[#7A6BB5] cursor-pointer">
+                                Choose File
+                                <input type="file" id="memoryMediaInput" accept="*/*" class="hidden" multiple>
+                            </label>
+                            <div id="recordButtonsContainer" class="flex flex-wrap justify-center gap-4 mt-4">
+                                <button type="button" id="recordAudioBtn" class="px-4 py-2 bg-[#8B7EC8] text-white rounded-lg hover:bg-[#7A6BB5] flex items-center gap-2"><i class="fa fa-microphone"></i> Record Audio</button>
+                                <button type="button" id="recordVideoBtn" class="px-4 py-2 bg-[#8B7EC8] text-white rounded-lg hover:bg-[#7A6BB5] flex items-center gap-2"><i class="fa fa-video"></i> Record Video</button>
+                                <button type="button" id="stopRecordingBtn" class="px-4 py-2 bg-[#8B7EC8] text-white rounded-lg hover:bg-[#7A6BB5] flex items-center gap-2 disabled:opacity-50" disabled><i class="fa fa-stop-circle"></i> Stop</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="mediaPreview" class="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6"></div>
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow">
+                    <h3 class="text-xl font-semibold text-[#2D2A3D] mb-4">Location</h3>
+                    <div class="relative">
+                        <input type="text" id="location" name="location" class="w-full px-4 py-3 border border-[#E8E3F5] rounded-lg focus:ring-2 focus:ring-[#8B7EC8]" placeholder="Where did this memory happen?" autocomplete="off">
+                        <i class="fas fa-map-marker-alt absolute right-3 top-4 text-[#6B6B7D]"></i>
+                        <div id="locationSuggestions" class="absolute z-10 w-full bg-white border border-[#E8E3F5] rounded-lg shadow-lg mt-1 hidden max-h-48 overflow-y-auto"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="order-1 lg:order-2 space-y-6">
+                <div class="bg-white rounded-2xl p-6 shadow">
+                    <label for="title" class="block text-lg font-semibold text-[#2D2A3D] mb-3">Memory Title *</label>
+                    <input type="text" id="title" name="title" required class="w-full px-4 py-3 border border-[#E8E3F5] rounded-lg focus:ring-2 focus:ring-[#8B7EC8]">
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow">
+                    <label for="date" class="block text-lg font-semibold text-[#2D2A3D] mb-3">Date *</label>
+                    <input type="date" id="date" name="date" required class="w-full px-4 py-3 border border-[#E8E3F5] rounded-lg focus:ring-2 focus:ring-[#8B7EC8]">
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow">
+                    <label class="block text-lg font-semibold text-[#2D2A3D] mb-3">Add Friends</label>
+                    <div id="availableFriendsList" class="mb-4">
+                        <!-- Populated dynamically -->
+                    </div>
+                    <input type="text" id="userSearchInput" placeholder="Type a name or email..." class="w-full px-4 py-3 border border-[#E8E3F5] rounded-lg" autocomplete="off">
+                    <div id="userSuggestions" class="space-y-2 mt-2 max-h-40 overflow-y-auto"></div>
+                    <div id="selectedFriends" class="mt-4"></div>
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow">
+                    <label for="description" class="block text-lg font-semibold text-[#2D2A3D] mb-3">Memory Description</label>
+                    <textarea id="description" name="description" rows="4" class="w-full px-4 py-3 border border-[#E8E3F5] rounded-lg focus:ring-2 focus:ring-[#8B7EC8]" placeholder="Tell the story of this memory..."></textarea>
+                    <div class="flex justify-between mt-2">
+                        <span class="text-sm text-[#6B6B7D]">Share the details</span>
+                        <span id="charCount" class="text-sm text-[#6B6B7D]">0/500</span>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow">
+                    <label for="tags" class="block text-lg font-semibold text-[#2D2A3D] mb-3">Tags (comma separated)</label>
+                    <input type="text" id="tags" name="tags" class="w-full px-4 py-3 border border-[#E8E3F5] rounded-lg focus:ring-2 focus:ring-[#8B7EC8]" placeholder="e.g. friendship, adventure">
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow">
+                    <label for="mood" class="block text-lg font-semibold text-[#2D2A3D] mb-3">Memory Mood</label>
+                    <select id="mood" name="mood" class="w-full px-4 py-3 border border-[#E8E3F5] rounded-lg focus:ring-2 focus:ring-[#8B7EC8]">
+                        <option value="">Select mood</option>
+                        <option value="happy">Happy</option>
+                        <option value="loved">Loved</option>
+                        <option value="excited">Excited</option>
+                        <option value="peaceful">Peaceful</option>
+                        <option value="grateful">Grateful</option>
+                        <option value="magical">Magical</option>
+                    </select>
+                </div>
+                <div class="flex gap-4 pt-6">
+                    <button type="submit" class="flex-1 bg-[#8B7EC8] text-white px-6 py-3 rounded-lg hover:bg-[#7A6BB5] shadow">Create Memory</button>
+                </div>
+            </div>
+        </form>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/app.js"></script>
+    <script src="/js/client_add_memory.js"></script>
+</body>
+</html>

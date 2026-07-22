@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Login to MemoryBook - Connect with friends and share memories" />
+    <title>Login - MemoryBook</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Quicksand:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/output.css">
+    <style>
+        html, body { font-family: 'Quicksand', sans-serif; }
+        .font-kalam { font-family: 'Kalam', cursive !important; }
+        body {
+            background: linear-gradient(135deg, rgba(139, 126, 200, 0.1) 0%, rgba(168, 200, 236, 0.08) 50%, rgba(244, 166, 166, 0.06) 100%);
+            min-height: 100vh;
+        }
+        .login-container {
+            backdrop-filter: blur(12px);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(139, 126, 200, 0.1);
+        }
+        .form-input {
+            background: rgba(255, 255, 255, 0.8);
+            border: 2px solid rgba(139, 126, 200, 0.1);
+            transition: all 0.3s ease;
+        }
+        .form-input:focus {
+            border-color: #8B7EC8;
+            box-shadow: 0 0 0 3px rgba(139, 126, 200, 0.1);
+            outline: none;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #8B7EC8 0%, #7A6BB5 100%);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(139, 126, 200, 0.3);
+        }
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #dc2626;
+        }
+        .success-message {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            color: #16a34a;
+        }
+        .password-toggle {
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+        .password-toggle:hover {
+            color: #8B7EC8;
+        }
+        .loading { display: none; }
+        .loading.active { display: inline-block; animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+        <!-- Logo and Header -->
+        <div class="text-center mb-8">
+            <a href="/dashboard.html" class="inline-flex items-center space-x-2 mb-4 hover:scale-105 transition-all duration-200">
+                <i class="fas fa-heart text-4xl text-[#8B7EC8]"></i>
+                <span class="text-3xl font-bold text-[#2D2A3D]">MemoryBook</span>
+            </a>
+            <h1 class="text-2xl font-semibold text-[#2D2A3D] mb-2">Welcome back!</h1>
+            <p class="text-[#6B6B7D]">Sign in to continue your journey with friends</p>
+        </div>
+
+        <div class="login-container p-8">
+            <div id="message-container" class="mb-6 hidden">
+                <div id="error-message" class="error-message p-3 rounded-lg text-sm hidden"></div>
+                <div id="success-message" class="success-message p-3 rounded-lg text-sm hidden"></div>
+            </div>
+
+            <form id="loginForm" class="space-y-6" novalidate>
+                <div>
+                    <label for="email" class="block text-sm font-medium text-[#2D2A3D] mb-2">Email Address</label>
+                    <div class="relative">
+                        <i class="fas fa-envelope absolute left-3 top-1/2 transform -translate-y-1/2 text-[#6B6B7D]"></i>
+                        <input type="email" id="email" name="email" class="form-input w-full pl-10 pr-4 py-3 rounded-xl" placeholder="Enter your email address" required />
+                    </div>
+                    <div class="text-red-500 text-xs mt-1 hidden" id="email-error"></div>
+                </div>
+
+                <div>
+                    <label for="password" class="block text-sm font-medium text-[#2D2A3D] mb-2">Password</label>
+                    <div class="relative">
+                        <i class="fas fa-lock absolute left-3 top-1/2 transform -translate-y-1/2 text-[#6B6B7D]"></i>
+                        <input type="password" id="password" name="password" class="form-input w-full pl-10 pr-12 py-3 rounded-xl" placeholder="Enter your password" required />
+                        <button type="button" class="password-toggle absolute right-3 top-1/2 transform -translate-y-1/2 text-[#6B6B7D]" aria-label="Toggle password visibility">
+                            <i class="fas fa-eye" id="password-icon"></i>
+                        </button>
+                    </div>
+                    <div class="text-red-500 text-xs mt-1 hidden" id="password-error"></div>
+                </div>
+
+                <button type="submit" class="btn-primary w-full py-3 rounded-xl text-white font-medium" id="loginBtn">
+                    <span id="loginText">Sign In</span>
+                    <i class="fas fa-spinner loading ml-2" id="loginSpinner"></i>
+                </button>
+            </form>
+
+            <div class="text-center mt-6">
+                <p class="text-sm text-[#6B6B7D]">
+                    Don't have an account? 
+                    <a href="/signup.html" class="text-[#8B7EC8] hover:text-[#7A6BB5] font-medium transition-colors">Sign up here</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/js/client_login.js"></script>
+</body>
+</html>

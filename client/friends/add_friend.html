@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Add Friend - MemoryBook</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"  />
+    <link rel="stylesheet" href="/output.css">
+    <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Quicksand:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+      html, body { font-family: 'Quicksand', sans-serif; }
+      .font-kalam { font-family: 'Kalam', cursive !important; }
+      .blobs-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: #fafafa; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-[#F5F3FB] via-[#FDFCFC] to-[#F4F8FD] min-h-screen">
+<div class="blobs-bg"></div>
+<div id="navbar-container"></div>
+<main class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="text-center mb-8">
+        <h1 class="text-3xl sm:text-4xl font-semibold text-[#2D2A3D] mb-4">
+            Add New Friend
+        </h1>
+        <p class="text-lg text-[#6B6B7D] max-w-2xl mx-auto">
+            Expand your network by capturing the story of your friendship and connection details.
+        </p>
+    </div>
+    <div id="errorMsg" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 hidden"></div>
+    <div class="bg-white rounded-2xl shadow p-6 lg:p-8">
+        <form id="addFriendForm" class="grid lg:grid-cols-2 gap-8">
+            <div class="lg:order-1 order-2">
+                <div class="text-center">
+                    <h3 class="text-lg font-semibold text-[#2D2A3D] mb-6">Profile Picture</h3>
+                    <div class="relative inline-block">
+                        <div id="imagePreview" class="w-32 h-32 sm:w-40 sm:h-40 bg-[#F5F3FB] rounded-full border-4 border-[#D1C7EB] border-dashed flex items-center justify-center cursor-pointer hover:bg-[#E8E3F5] group">
+                            <div id="placeholderContent" class="text-center">
+                                <i class="fas fa-camera text-3xl text-[#A394D4] mx-auto mb-2 group-hover:text-[#7A6BB5] transition"></i>
+                                <p class="text-sm text-[#7A6BB5] font-medium">Add Photo</p>
+                            </div>
+                            <img id="selectedImage" class="w-full h-full object-cover rounded-full hidden" alt="Friend profile" />
+                        </div>
+                        <input type="file" id="profileImage" name="profileImage" accept="image/*" class="hidden" />
+                        <button type="button" id="removeImageBtn" class="absolute -top-2 -right-2 w-8 h-8 bg-[#E88B8B] text-white rounded-full hidden hover:bg-[#E47777] transition">
+                            <i class="fas fa-times text-sm"></i>
+                        </button>
+                    </div>
+                    <p class="text-sm text-[#6B6B7D] mt-4">
+                        Upload a profile picture to personalize your friend's profile
+                    </p>
+                </div>
+            </div>
+            <div class="lg:order-2 order-1 space-y-6">
+                <div class="relative">
+                    <label for="userSearchInput" class="block text-sm font-medium text-[#2D2A3D] mb-2">
+                        Friend's Name or Email *
+                    </label>
+                    <input type="text" id="userSearchInput" name="userSearchInput" required class="w-full px-4 py-3 border border-[#D1C7EB] rounded-lg focus:ring-2 focus:ring-[#8B7EC8] focus:border-transparent text-[#2D2A3D] placeholder-[#6B6B7D]" placeholder="Type a name or email..." autocomplete="off" />
+                    <div id="userSuggestions" class="absolute z-10 w-full bg-white border border-[#D1C7EB] rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto hidden"></div>
+                </div>
+                <div>
+                    <label for="friendEmail" class="block text-sm font-medium text-[#2D2A3D] mb-2">
+                        Email Address *
+                    </label>
+                    <input type="email" id="friendEmail" name="friendEmail" required class="w-full px-4 py-3 border border-[#D1C7EB] rounded-lg focus:ring-2 focus:ring-[#8B7EC8] focus:border-transparent text-[#2D2A3D] placeholder-[#6B6B7D]" placeholder="friend@example.com" />
+                </div>
+                <input type="hidden" id="friendName" name="friendName" />
+                <div>
+                    <label class="block text-sm font-medium text-[#2D2A3D] mb-2">
+                        Relationship Tag
+                    </label>
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <button type="button" class="relationship-tag px-4 py-2 border-2 border-[#D1C7EB] rounded-lg text-[#6B6B7D] hover:border-[#8B7EC8] hover:text-[#8B7EC8] transition" data-tag="Best Friend">
+                            <i class="fab fa-gratipay mr-2"></i> Best Friend
+                        </button>
+                        <button type="button" class="relationship-tag px-4 py-2 border-2 border-[#D1C7EB] rounded-lg text-[#6B6B7D] hover:border-[#8B7EC8] hover:text-[#8B7EC8] transition" data-tag="Family">
+                            <i class="fas fa-users mr-2"></i> Family
+                        </button>
+                        <button type="button" class="relationship-tag px-4 py-2 border-2 border-[#D1C7EB] rounded-lg text-[#6B6B7D] hover:border-[#8B7EC8] hover:text-[#8B7EC8] transition" data-tag="Colleague">
+                            <i class="fab fa-linkedin mr-2"></i> Colleague
+                        </button>
+                        <button type="button" class="relationship-tag px-4 py-2 border-2 border-[#D1C7EB] rounded-lg text-[#6B6B7D] hover:border-[#8B7EC8] hover:text-[#8B7EC8] transition" data-tag="Acquaintance">
+                            <i class="fab fa-meetup mr-2"></i> Acquaintance
+                        </button>
+                    </div>
+                    <input type="text" id="customTag" class="w-full px-4 py-3 border border-[#D1C7EB] rounded-lg focus:ring-2 focus:ring-[#8B7EC8] focus:border-transparent text-[#2D2A3D] placeholder-[#6B6B7D]" placeholder="Or create a custom tag..." />
+                    <input type="hidden" id="selectedTag" name="relationshipTag" />
+                </div>
+            </div>
+            <div class="lg:col-span-2 order-3">
+                <label for="howYouMet" class="block text-sm font-medium text-[#2D2A3D] mb-2">
+                    How You Met *
+                </label>
+                <textarea id="howYouMet" name="howYouMet" rows="4" required maxlength="500" class="w-full px-4 py-3 border border-[#D1C7EB] rounded-lg focus:ring-2 focus:ring-[#8B7EC8] focus:border-transparent text-[#2D2A3D] placeholder-[#6B6B7D] resize-none" placeholder="Share the story of how you met this friend... What made your first encounter special?"></textarea>
+                <div class="flex justify-between items-center mt-2">
+                    <div class="text-sm text-[#6B6B7D]">
+                        <span id="charCount">0</span>/500 characters
+                    </div>
+                </div>
+            </div>
+            <div class="lg:col-span-2 order-4 flex flex-col sm:flex-row gap-4 pt-6 border-t border-[#E8E3F5]">
+                <button type="submit" class="flex-1 bg-[#8B7EC8] text-white px-8 py-4 rounded-xl font-medium hover:bg-[#7A6BB5] transition shadow hover:scale-105">
+                    Save Friend
+                </button>
+                <button type="button" id="resetFormBtn" class="flex-1 bg-white text-[#8B7EC8] px-8 py-4 rounded-xl font-medium hover:bg-[#F5F3FB] transition shadow border border-[#D1C7EB]">
+                    Reset Form
+                </button>
+            </div>
+        </form>
+    </div>
+</main>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/app.js"></script>
+    <script src="/js/client_add_friend.js"></script>
+</body>
+</html>

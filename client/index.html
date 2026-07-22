@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MemoryBook - Your Digital Friendship Scrapbook</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Quicksand:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/output.css">
+    <style>
+        html, body { font-family: 'Quicksand', sans-serif; }
+        .font-kalam { font-family: 'Kalam', cursive !important; }
+        .enhanced-backdrop {
+            backdrop-filter: blur(12px);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(139, 126, 200, 0.1);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #8B7EC8, #A8C8EC);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .feature-card {
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(139, 126, 200, 0.15);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 min-h-screen">
+
+    <header class="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <a href="#" class="flex items-center space-x-2 hover:scale-105 transition-transform">
+                        <i class="fas fa-heart text-2xl text-[#8B7EC8]"></i>
+                        <span class="text-xl font-semibold text-[#2D2A3D]">MemoryBook</span>
+                    </a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/login.html" class="px-4 py-2 rounded-lg border border-[#8B7EC8] text-[#8B7EC8] hover:bg-[#8B7EC8] hover:text-white transition-colors font-medium">
+                        Login
+                    </a>
+                    <a href="/signup.html" class="px-4 py-2 rounded-lg bg-[#8B7EC8] hover:bg-[#7A6BB5] transition-colors font-medium text-white">
+                        Sign Up
+                    </a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <section class="relative overflow-hidden py-20 lg:py-32">
+        <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid lg:grid-cols-2 gap-12 items-center">
+                <div class="text-center lg:text-left">
+                    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-6 text-[#2D2A3D]">
+                        Your Digital <span class="gradient-text">Friendship Scrapbook</span>
+                    </h1>
+                    <p class="text-xl sm:text-2xl mb-8 max-w-2xl mx-auto lg:mx-0 text-[#6B6B7D] leading-relaxed">
+                        Store, share, and preserve your most precious memories with friends. 
+                        <span class="font-semibold text-[#8B7EC8]">MemoryBook</span> offers secure memory storage, easy sharing, time capsule features, and more to create your perfect digital scrapbook.
+                    </p>
+                    <div class="flex flex-wrap gap-4 mb-8 justify-center lg:justify-start">
+                        <span class="px-4 py-2 bg-[#ede9fa] text-[#8B7EC8] rounded-full text-sm font-medium">
+                            <i class="fas fa-shield-alt mr-2"></i>Secure Storage
+                        </span>
+                        <span class="px-4 py-2 bg-[#d1c7eb] text-[#8B7EC8] rounded-full text-sm font-medium">
+                            <i class="fas fa-share-alt mr-2"></i>Easy Sharing
+                        </span>
+                        <span class="px-4 py-2 bg-[#FDE8E8] text-[#F4A6A6] rounded-full text-sm font-medium">
+                            <i class="fas fa-clock mr-2"></i>Time Capsule
+                        </span>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                        <a href="/signup.html" class="px-8 py-4 rounded-xl font-semibold hover:scale-105 transition-transform shadow-lg text-white bg-[#8B7EC8] hover:bg-[#7A6BB5]">
+                            Start Your Journey
+                        </a>
+                        <a href="/login.html" class="bg-white px-8 py-4 rounded-xl font-semibold hover:bg-gray-50 transition-colors shadow-lg border border-gray-200 text-[#8B7EC8]">
+                            Login
+                        </a>
+                    </div>
+                </div>
+                <div class="relative">
+                    <div class="relative z-10">
+                        <img src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=2832&auto=format&fit=crop&ixlib=rb-4.0.3" alt="Friends creating memories together" class="w-full h-96 lg:h-[500px] object-cover rounded-2xl shadow-xl hover:scale-105 transition-transform" loading="lazy" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="text-white py-12" style="background-color: #2D2A3D;">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="border-t border-gray-700 mt-8 pt-8 text-center">
+                <p class="text-gray-300">
+                    © 2025 MemoryBook. All Rights Reserved. Made with ❤️ for preserving friendships and memories.
+                </p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

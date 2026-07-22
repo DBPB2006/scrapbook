@@ -1,0 +1,16 @@
+{
+  "name": "scrapbook-sharing-service",
+  "version": "1.0.0",
+  "description": "Sharing Microservice",
+  "main": "sharing_server.js",
+  "scripts": {
+    "start": "node sharing_server.js"
+  },
+  "dependencies": {
+    "axios": "^1.18.1",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1"
+  }
+}

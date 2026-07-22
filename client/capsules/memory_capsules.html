@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Memory Capsules</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="/output.css">
+    <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Quicksand:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background-color: #f8f0fc;
+        }
+        .text-pastel-purple { color: #957dad; }
+        .bg-pastel-purple { background-color: #e0bbe4; }
+        .border-pastel-purple { border-color: #d291bc; }
+        .bg-pastel-purple-light { background-color: #f8f0fc; }
+        .bg-pastel-pink { background-color: #fec8d8; }
+        .bg-pastel-blue { background-color: #a2d2ff; }
+        .text-pastel-blue { color: #5e84e2; }
+        .bg-pastel-green { background-color: #d4f0f0; }
+        .text-pastel-green { color: #4CAF50; }
+        .recipient-btn.active {
+            background-color: #957dad;
+            color: white;
+            border-color: #957dad;
+        }
+        .blobs-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: #f8f0fc; }
+    </style>
+</head>
+<body class="min-h-screen">
+<div class="blobs-bg"></div>
+<div id="navbar-container"></div>
+
+<div class="max-w-4xl mx-auto mt-10 mb-8 p-8 rounded-2xl shadow-xl border bg-white/90 border-gray-200">
+  <h2 class="text-2xl font-bold mb-4 flex items-center text-pastel-purple"><i class="fas fa-box-open mr-2"></i>Create a New Time Capsule</h2>
+  <div id="successMsg" class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4 hidden"></div>
+  <div id="errorMsg" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 hidden"></div>
+  
+  <form class="space-y-5" id="capsuleForm">
+    <div>
+      <label class="block font-medium mb-1 text-pastel-purple">Message</label>
+      <textarea required id="message" name="message" class="w-full rounded-lg p-2 mt-1 border bg-pastel-purple-light border-pastel-purple" rows="3" placeholder="Write your message here..."></textarea>
+    </div>
+    <div>
+      <label class="block font-medium mb-1 text-pastel-purple">Description (Optional)</label>
+      <textarea id="description" name="description" class="w-full rounded-lg p-2 mt-1 border bg-pastel-purple-light border-pastel-purple" rows="2" placeholder="Add a short description..."></textarea>
+    </div>
+    <div>
+      <label class="block font-medium mb-1 text-pastel-purple">Media</label>
+      <p class="text-sm mb-2 text-gray-500">You can upload files directly OR record a new audio/video message below.</p>
+      <input type="file" id="mediaInput" name="media[]" multiple accept="image/*,audio/*,video/*" class="w-full rounded-lg p-2 mb-4 border bg-pastel-purple-light border-pastel-purple" />
+      <div class="p-4 rounded-lg border bg-gray-50 border-pastel-purple">
+        <h4 class="font-semibold mb-2 text-gray-600">Record Media</h4>
+        <div class="rounded-lg overflow-hidden mb-4 border-2 aspect-video bg-black border-pastel-purple">
+            <video id="videoPlayer" class="w-full h-full" autoplay muted playsinline></video>
+        </div>
+        <div class="flex items-center gap-2 mb-2">
+          <button type="button" id="recordVideoBtn" class="py-2 px-4 rounded-lg font-bold flex-1 shadow bg-pastel-pink hover:bg-pastel-blue text-white flex items-center justify-center"><i class="fas fa-video mr-2"></i>Record Video</button>
+          <button type="button" id="stopVideoBtn" class="py-2 px-4 rounded-lg font-bold flex-1 shadow bg-pastel-pink hover:bg-pastel-blue text-white flex items-center justify-center"><i class="fas fa-stop-circle mr-2"></i>Stop</button>
+          <button type="button" id="recordAudioBtn" class="py-2 px-4 rounded-lg font-bold flex-1 shadow bg-pastel-pink hover:bg-pastel-blue text-white flex items-center justify-center"><i class="fas fa-microphone mr-2"></i>Record Audio</button>
+          <button type="button" id="stopAudioBtn" class="py-2 px-4 rounded-lg font-bold flex-1 shadow bg-pastel-pink hover:bg-pastel-blue text-white flex items-center justify-center"><i class="fas fa-stop-circle mr-2"></i>Stop</button>
+        </div>
+        <div id="mediaPreview" class="mt-3 text-center"></div>
+      </div>
+    </div>
+    <div>
+      <label class="block font-medium mb-1 text-pastel-purple">Recipient</label>
+      <div class="flex gap-2 mb-2">
+        <button type="button" id="btnMyself" class="recipient-btn px-4 py-1 rounded-lg border font-semibold border-pastel-purple text-pastel-purple">Myself</button>
+        <button type="button" id="btnSearchUser" class="recipient-btn px-4 py-1 rounded-lg border font-semibold border-pastel-purple text-pastel-purple">Search User</button>
+      </div>
+      <div id="recipientSelectionContainer">
+        <div class="relative">
+            <input type="text" id="userSearchInput" class="w-full rounded-lg p-2 mt-1 border bg-pastel-purple-light border-pastel-purple disabled:bg-gray-200" placeholder="Select an option above..." autocomplete="off" disabled>
+            <input type="hidden" id="recipientEmailHidden">
+            <div id="userSuggestions" class="absolute z-50 rounded shadow-lg mt-1 w-full bg-white hidden max-h-60 overflow-y-auto"></div>
+        </div>
+        <div id="selectedUserDisplay" class="hidden mt-2 p-2 bg-pastel-green border border-pastel-blue rounded-lg flex justify-between items-center">
+            <span id="selectedUserName" class="font-semibold text-pastel-blue"></span>
+            <button type="button" id="clearUserSelection" class="text-red-500 hover:text-red-700 font-bold text-xl leading-none">&times;</button>
+        </div>
+      </div>
+      <div class="text-xs text-gray-500 mt-1">Select a user from the suggestions. The recipient must be a registered user.</div>
+    </div>
+    <div>
+      <label class="block font-medium text-pastel-purple">Reveal Date & Time</label>
+      <input type="datetime-local" id="reveal_date" required name="reveal_date" class="w-full rounded-lg p-2 mt-1 border bg-pastel-purple-light border-pastel-purple">
+    </div>
+    <div class="text-center pt-2">
+      <button type="submit" class="px-6 py-2 rounded-lg font-bold shadow bg-pastel-blue hover:bg-pastel-pink text-white"> <i class="fas fa-paper-plane mr-1"></i> Create Capsule</button>
+    </div>
+  </form>
+</div>
+
+<!-- Capsule List -->
+<div class="max-w-6xl mx-auto p-4 grid gap-10 gap-y-16 md:grid-cols-2" id="capsulesList">
+    <div class="col-span-2 text-center text-gray-500 py-10" id="loadingCapsules">Loading capsules...</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="/app.js"></script>
+<script src="/js/client_memory_capsules.js"></script>
+</body>
+</html>

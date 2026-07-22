@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard - MemoryBook</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="/blobs.css" />
+    <link rel="stylesheet" href="/output.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Quicksand:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        html, body { font-family: 'Quicksand', sans-serif; }
+        .font-kalam { font-family: 'Kalam', cursive !important; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .enhanced-backdrop { backdrop-filter: blur(12px); background: rgba(255, 255, 255, 0.95); border-radius: 16px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); border: 1px solid rgba(139, 126, 200, 0.1); }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 min-h-screen">
+<div class="blobs-bg">
+    <div class="blob blob1"></div><div class="blob blob2"></div><div class="blob blob3"></div><div class="blob blob4"></div><div class="blob blob5"></div><div class="blob blob6"></div><div class="blob blob7"></div><div class="blob blob8"></div><div class="blob blob9"></div><div class="blob blob10"></div><div class="blob blob11"></div><div class="blob blob12"></div><div class="blob blob13"></div>
+</div>
+        <div id="navbar-container"></div>
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="mb-8">
+            <h1 class="text-3xl sm:text-4xl font-semibold text-[#2D2A3D] mb-2">
+                Welcome back, <span id="welcomeName"></span>! 👋
+            </h1>
+        <p class="text-lg text-[#6B6B7D]">Here's what's happening in your friendship network today</p>
+        </div>
+        <div class="grid lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-3">
+                <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-4 mb-8 enhanced-backdrop p-6">
+                <div class="bg-[#ede9fa] rounded-2xl p-6 shadow transition-all duration-300 hover:scale-105">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-[#E8E3F5] rounded-xl flex items-center justify-center">
+                                <i class="fas fa-users w-6 h-6 text-[#8B7EC8]"></i>
+                            </div>
+                            <span class="text-2xl font-semibold text-[#2D2A3D]" id="friendsCount">0</span>
+                        </div>
+                        <h3 class="font-medium text-[#2D2A3D] mb-1">Total Friends</h3>
+                        <p class="text-sm text-[#6B6B7D]" id="friendsCountLabel">+0 total</p>
+                    </div>
+                <div class="bg-[#d1c7eb] rounded-2xl p-6 shadow transition-all duration-300 hover:scale-105">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-[#E6F1FB] rounded-xl flex items-center justify-center">
+                                <i class="fas fa-heart w-6 h-6 text-[#A8C8EC]"></i>
+                            </div>
+                            <span class="text-2xl font-semibold text-[#2D2A3D]" id="memoryCount">0</span>
+                        </div>
+                        <h3 class="font-medium text-[#2D2A3D] mb-1">Memories</h3>
+                        <p class="text-sm text-[#6B6B7D]" id="memoryCountLabel">+0 total</p>
+                    </div>
+                </div>
+            <div class="lg:hidden mb-8 enhanced-backdrop p-4 bg-[#d1c7eb]">
+                    <h2 class="text-lg font-semibold text-[#2D2A3D] mb-3">Quick Actions</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <a href="/friends/add_friend.html" class="bg-[#8B7EC8] text-white p-4 rounded-xl hover:bg-[#7A6BB5] transition-all duration-300 text-center">
+                            <i class="fas fa-user-plus w-7 h-7 mb-2"></i>
+                            <span class="text-sm font-medium">Add Friend</span>
+                        </a>
+                    <a href="/memories/add_memory.html" class="bg-[#A8C8EC] text-white p-4 rounded-xl hover:bg-[#8BB4E0] transition-all duration-300 text-center">
+                            <i class="fas fa-plus w-7 h-7 mb-2"></i>
+                            <span class="text-sm font-medium">Create Memory</span>
+                        </a>
+                    <a href="/friends/friendship_map_of_memories.html?view=network" class="bg-[#E6F1FB] text-[#8B7EC8] p-4 rounded-xl hover:bg-[#D1C7EB] transition-all duration-300 text-center">
+                            <i class="fas fa-project-diagram w-7 h-7 mb-2"></i>
+                            <span class="text-sm font-medium">Network of Friends</span>
+                        </a>
+                    <a href="/friends/friendship_map_of_memories.html?view=map" class="bg-[#F4A6A6] text-white p-4 rounded-xl hover:bg-[#F18C8C] transition-all duration-300 text-center">
+                            <i class="fas fa-map-marked-alt w-7 h-7 mb-2"></i>
+                            <span class="text-sm font-medium">Map Your Memories</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="lg:col-span-6">
+                <div class="hidden lg:block mb-8 enhanced-backdrop p-4 bg-[#ede9fa]">
+                    <h2 class="text-lg font-semibold text-[#2D2A3D] mb-3">Quick Actions</h2>
+                    <div class="grid grid-cols-4 gap-2">
+                        <a href="/friends/add_friend.html" class="bg-[#8B7EC8] text-white p-4 rounded-xl hover:bg-[#7A6BB5] transition-all duration-300 text-center">
+                            <i class="fas fa-user-plus w-7 h-7 mb-2"></i>
+                            <span class="text-sm font-medium">Add Friend</span>
+                        </a>
+                        <a href="/memories/add_memory.html" class="bg-[#A8C8EC] text-white p-4 rounded-xl hover:bg-[#8BB4E0] transition-all duration-300 text-center">
+                            <i class="fas fa-plus w-7 h-7 mb-2"></i>
+                            <span class="text-sm font-medium">Create Memory</span>
+                        </a>
+                        <a href="/friends/friendship_map_of_memories.html?view=network" class="bg-[#E6F1FB] text-[#8B7EC8] p-4 rounded-xl hover:bg-[#D1C7EB] transition-all duration-300 text-center">
+                            <i class="fas fa-project-diagram w-7 h-7 mb-2"></i>
+                            <span class="text-sm font-medium">Network of Friends</span>
+                        </a>
+                        <a href="/friends/friendship_map_of_memories.html?view=map" class="bg-[#F4A6A6] text-white p-4 rounded-xl hover:bg-[#F18C8C] transition-all duration-300 text-center">
+                            <i class="fas fa-map-marked-alt w-7 h-7 mb-2"></i>
+                            <span class="text-sm font-medium">Map Your Memories</span>
+                        </a>
+                    </div>
+                </div>
+                <div class="mb-8 enhanced-backdrop p-6 bg-[#F4F8FD]">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-xl font-semibold text-[#2D2A3D]">Recent Memories</h2>
+                    </div>
+                    <div class="flex space-x-4 overflow-x-auto pb-4 scrollbar-hide" id="recentMemoriesList">
+                    </div>
+                </div>
+            </div>
+            <div class="lg:col-span-3">
+                <div class="enhanced-backdrop p-6 mb-6 bg-[#F0F7FF]">
+                    <h3 class="font-semibold text-[#2D2A3D] mb-4">Friends Activity</h3>
+                    <div class="space-y-4" id="recentFriendsList">
+                    </div>
+                </div>
+                <div class="enhanced-backdrop p-6 bg-[#F9FBE7]">
+                    <h3 class="font-semibold text-[#2D2A3D] mb-4">This Week</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-[#6B6B7D]">New memories</span>
+                            <span class="text-sm font-medium text-[#2D2A3D]" id="newMemoriesCount">0</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-[#6B6B7D]">Friends added</span>
+                            <span class="text-sm font-medium text-[#2D2A3D]" id="newFriendsCount">0</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-[#6B6B7D]">Map views</span>
+                            <span class="text-sm font-medium text-[#2D2A3D]" id="mapViewsCount">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/app.js"></script>
+    <script src="/js/client_dashboard.js"></script>
+</body>
+</html>

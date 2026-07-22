@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
-const common = require('./ds/sharing_common_functions');
+const common = require('./sharing_common_functions');
 
 const app = express();
 const PORT = 3004;

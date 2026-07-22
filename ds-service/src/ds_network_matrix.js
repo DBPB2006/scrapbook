@@ -1,3 +1,5 @@
+const { Queue } = require('./ds_queue');
+
 function buildNodesAndIndexMap(usersData) {
     const registeredUsers = {};
     for (const bucket in usersData) {
@@ -81,7 +83,8 @@ function getFriendSuggestions(friendshipMatrix, indexMap, emails, startEmail, fr
     if (indexMap[startEmail] === undefined) return suggestions;
     
     const startIndex = indexMap[startEmail];
-    const queue = [[startIndex, 0]];
+    const queue = new Queue();
+    queue.enqueue([startIndex, 0]);
     const visited = [];
     const alreadyFriends = [startIndex];
     
@@ -93,8 +96,8 @@ function getFriendSuggestions(friendshipMatrix, indexMap, emails, startEmail, fr
         }
     }
     
-    while (queue.length > 0) {
-        const [node, level] = queue.shift();
+    while (!queue.isEmpty()) {
+        const [node, level] = queue.dequeue();
         if (visited.includes(node)) continue;
         visited.push(node);
         
@@ -106,7 +109,7 @@ function getFriendSuggestions(friendshipMatrix, indexMap, emails, startEmail, fr
         if (level < 3) {
             for (let i = 0; i < friendshipMatrix[node].length; i++) {
                 if (friendshipMatrix[node][i] === 1 && !visited.includes(i)) {
-                    queue.push([i, level + 1]);
+                    queue.enqueue([i, level + 1]);
                 }
             }
         }

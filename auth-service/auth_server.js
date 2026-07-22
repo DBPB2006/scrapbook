@@ -1,7 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
-const userStore = require('./ds/auth_bucketed_user_store');
+const common = require('./auth_common_functions');
+
+const userStore = {
+    load_users: () => common.loadUsers(),
+    save_users: (users) => common.saveUsers(users),
+    get_bucket: async (email) => { const users = common.loadUsers(); const res = await axios.post("http://ds-service:3005/api/ds/bucket/get_user", { users, email }); return res.data.bucket; },
+    get_user: async (email) => { const users = common.loadUsers(); const res = await axios.post("http://ds-service:3005/api/ds/bucket/get_user", { users, email }); return res.data.user; },
+    add_user: async (email, details) => { const users = common.loadUsers(); const res = await axios.post("http://ds-service:3005/api/ds/bucket/add_user", { users, email, details }); common.saveUsers(res.data.users); },
+    username_exists: async (username) => { const users = common.loadUsers(); const res = await axios.post("http://ds-service:3005/api/ds/bucket/username_exists", { users, username }); return res.data.exists; }
+};
 const multer = require('multer');
 const path = require('path');
 const axios = require('axios');
@@ -35,7 +44,7 @@ const isAuthenticated = (req, res, next) => {
 };
 
 // Signup Route
-app.post('/api/signup', upload.single('profilePic'), (req, res) => {
+app.post('/api/signup', upload.single('profilePic'), async (req, res) => {
     const { firstName, lastName, username, email, password, confirmPassword } = req.body;
     
     if (!firstName || !lastName || !username || !email || !password) {
@@ -54,18 +63,13 @@ app.post('/api/signup', upload.single('profilePic'), (req, res) => {
     const lowerEmail = email.toLowerCase();
     
     // Check if email exists
-    if (userStore.get_user(lowerEmail)) {
+    if (await userStore.get_user(lowerEmail)) {
         return res.status(400).json({ error: 'Email is already registered.' });
     }
     
     // Check if username exists (requires iterating through all users)
-    const allUsers = userStore.load_users();
-    for (const bucket in allUsers) {
-        for (const userEmail in allUsers[bucket]) {
-            if (allUsers[bucket][userEmail].username === username) {
-                return res.status(400).json({ error: 'This username is already taken.' });
-            }
-        }
+    if (await userStore.username_exists(username)) {
+        return res.status(400).json({ error: 'This username is already taken.' });
     }
 
     const hashedPassword = bcrypt.hashSync(password, 10);
@@ -82,7 +86,7 @@ app.post('/api/signup', upload.single('profilePic'), (req, res) => {
         friends: []
     };
 
-    userStore.add_user(newUser.email, newUser);
+    await userStore.add_user(newUser.email, newUser);
 
     // Note: Gateway handles session creation, but we just return success
     // The frontend should ideally call login after signup to establish session
@@ -90,21 +94,21 @@ app.post('/api/signup', upload.single('profilePic'), (req, res) => {
 });
 
 // Login Route
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
         return res.status(400).json({ error: 'Email and password are required.' });
     }
 
     const lowerEmail = email.toLowerCase();
-    const user = userStore.get_user(lowerEmail);
+    const user = await userStore.get_user(lowerEmail);
 
     let passwordMatch = false;
     if (user) {
         if (user.password === password) {
             passwordMatch = true;
             user.password = bcrypt.hashSync(password, 10);
-            userStore.add_user(user.email, user);
+            await userStore.add_user(user.email, user);
         } else if (bcrypt.compareSync(password, user.password)) {
             passwordMatch = true;
         }
@@ -126,16 +130,16 @@ app.post('/api/login', (req, res) => {
 });
 
 // Logout Route
-app.post('/api/logout', (req, res) => {
+app.post('/api/logout', async (req, res) => {
     res.setHeader('x-clear-session', 'true');
     res.json({ success: true, redirect: '/login.html' });
 });
 
 // Current User Info
-app.get('/api/current_user', (req, res) => {
+app.get('/api/current_user', async (req, res) => {
     const email = req.headers['x-user-email'];
     if (email) {
-        const user = userStore.get_user(email);
+        const user = await userStore.get_user(email);
         res.json({ loggedin: true, email: email, username: user ? user.username : '', name: user ? user.name : '' });
     } else {
         res.json({ loggedin: false });
@@ -143,14 +147,14 @@ app.get('/api/current_user', (req, res) => {
 });
 
 // Profile Data
-app.get('/api/users/profile_data', isAuthenticated, (req, res) => {
-    const user = userStore.get_user(req.userEmail);
+app.get('/api/users/profile_data', isAuthenticated, async (req, res) => {
+    const user = await userStore.get_user(req.userEmail);
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
 });
 
 // User Search endpoint (combining from various places)
-app.get('/api/users', isAuthenticated, (req, res) => {
+app.get('/api/users', isAuthenticated, async (req, res) => {
     const allUsers = userStore.load_users();
     const flatUsers = [];
     for (const bucket in allUsers) {
@@ -167,14 +171,14 @@ app.get('/api/users', isAuthenticated, (req, res) => {
     res.json(flatUsers);
 });
 
-app.get('/api/internal/users/raw', (req, res) => {
+app.get('/api/internal/users/raw', async (req, res) => {
     res.json(userStore.load_users());
 });
 
-app.post('/api/internal/users', (req, res) => {
+app.post('/api/internal/users', async (req, res) => {
     const user = req.body;
     if (user && user.email) {
-        userStore.add_user(user.email, user);
+        await userStore.add_user(user.email, user);
         res.json({ success: true });
     } else {
         res.status(400).json({ error: 'Invalid user object' });
@@ -183,9 +187,9 @@ app.post('/api/internal/users', (req, res) => {
 
 
 
-app.post('/api/users/profile/update', isAuthenticated, upload.single('profile_pic'), (req, res) => {
+app.post('/api/users/profile/update', isAuthenticated, upload.single('profile_pic'), async (req, res) => {
     const currentEmail = req.userEmail;
-    const user = userStore.get_user(currentEmail);
+    const user = await userStore.get_user(currentEmail);
     const { first_name, last_name, username, email } = req.body;
 
     if (first_name) user.first_name = first_name;
@@ -200,23 +204,23 @@ app.post('/api/users/profile/update', isAuthenticated, upload.single('profile_pi
 
     if (email && email.toLowerCase() !== currentEmail.toLowerCase()) {
         const lowerEmail = email.toLowerCase();
-        if (userStore.get_user(lowerEmail)) {
+        if (await userStore.get_user(lowerEmail)) {
             return res.status(400).json({ error: 'Email already in use' });
         }
-        const users = userStore.load_users(); delete users[userStore.get_bucket(currentEmail)][currentEmail]; userStore.save_users(users);
+        const users = userStore.load_users(); delete users[await userStore.get_bucket(currentEmail)][currentEmail]; userStore.save_users(users);
         user.email = lowerEmail;
-        userStore.add_user(user.email, user);
+        await userStore.add_user(user.email, user);
         res.setHeader('x-set-session-email', lowerEmail);
     } else {
-        userStore.add_user(user.email, user);
+        await userStore.add_user(user.email, user);
     }
 
     res.json({ success: true, message: 'Profile updated successfully' });
 });
 
-app.post('/api/users/profile/password', isAuthenticated, (req, res) => {
+app.post('/api/users/profile/password', isAuthenticated, async (req, res) => {
     const currentEmail = req.userEmail;
-    const user = userStore.get_user(currentEmail);
+    const user = await userStore.get_user(currentEmail);
     const { old_password, new_password, confirm_password } = req.body;
 
     const passwordMatch = user.password === old_password || bcrypt.compareSync(old_password, user.password);
@@ -232,33 +236,33 @@ app.post('/api/users/profile/password', isAuthenticated, (req, res) => {
     }
 
     user.password = bcrypt.hashSync(new_password, 10);
-    userStore.add_user(user.email, user);
+    await userStore.add_user(user.email, user);
 
     res.json({ success: true, message: 'Password changed successfully' });
 });
 
-app.post('/api/users/profile/remove_friend', isAuthenticated, (req, res) => {
+app.post('/api/users/profile/remove_friend', isAuthenticated, async (req, res) => {
     const currentEmail = req.userEmail;
-    const user = userStore.get_user(currentEmail);
+    const user = await userStore.get_user(currentEmail);
     const { remove_friend_id } = req.body;
 
     if (user.friends) {
         user.friends = user.friends.filter(f => f.friend_id !== remove_friend_id && f.email !== remove_friend_id && f.id !== remove_friend_id);
-        userStore.add_user(user.email, user);
+        await userStore.add_user(user.email, user);
     }
 
     res.json({ success: true, message: 'Friend removed successfully' });
 });
 
-app.post('/api/users/profile/delete_account', isAuthenticated, (req, res) => {
-    const users = userStore.load_users(); delete users[userStore.get_bucket(req.userEmail)][req.userEmail]; userStore.save_users(users);
+app.post('/api/users/profile/delete_account', isAuthenticated, async (req, res) => {
+    const users = userStore.load_users(); delete users[await userStore.get_bucket(req.userEmail)][req.userEmail]; userStore.save_users(users);
     res.setHeader('x-clear-session', 'true');
     res.json({ success: true, message: 'Account deleted' });
 });
 
 app.get('/api/dashboard_data', isAuthenticated, async (req, res) => {
     const currentEmail = req.userEmail;
-    const user = userStore.get_user(currentEmail);
+    const user = await userStore.get_user(currentEmail);
     
     let allMemories = [];
     try {

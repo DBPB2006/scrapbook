@@ -3,6 +3,7 @@ const cors = require('cors');
 const { PriorityQueue } = require('./src/ds_priority_queue');
 const { isCapsuleUnlocked } = require('./src/ds_stack');
 const networkMatrix = require('./src/ds_network_matrix');
+const bucketStore = require('./src/ds_bucketed_user_store');
 
 const app = express();
 const PORT = 3005;
@@ -51,6 +52,56 @@ app.post('/api/ds/network/suggestions', (req, res) => {
         const { friendshipMatrix, emailIndexMap, emails, currentEmail, friendGraph } = req.body;
         const suggestions = networkMatrix.getFriendSuggestions(friendshipMatrix, emailIndexMap, emails, currentEmail, friendGraph);
         res.json({ suggestions });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Bucketed User Store endpoints
+app.post('/api/ds/bucket/get_user', (req, res) => {
+    try {
+        const { users, email } = req.body;
+        if (!users || !email) return res.status(400).json({ error: 'users and email required' });
+        
+        const bucket = bucketStore.get_bucket(email);
+        const user = (users[bucket] && users[bucket][email]) ? users[bucket][email] : null;
+        res.json({ user, bucket });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/ds/bucket/add_user', (req, res) => {
+    try {
+        const { users, email, details } = req.body;
+        if (!users || !email || !details) return res.status(400).json({ error: 'users, email, and details required' });
+        
+        const bucket = bucketStore.get_bucket(email);
+        if (!users[bucket]) users[bucket] = {};
+        users[bucket][email] = details;
+        res.json({ users });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/ds/bucket/username_exists', (req, res) => {
+    try {
+        const { users, username } = req.body;
+        if (!users || !username) return res.status(400).json({ error: 'users and username required' });
+        
+        let exists = false;
+        for (const bucket in users) {
+            for (const email in users[bucket]) {
+                const user = users[bucket][email];
+                if (user.username && user.username.toLowerCase() === username.toLowerCase()) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (exists) break;
+        }
+        res.json({ exists });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm install
 
-COPY sharing_server.js ./
+COPY sharing_server.js sharing_common_functions.js ./
 # Volumes for data and uploads will be mounted at runtime
 
 EXPOSE 3004

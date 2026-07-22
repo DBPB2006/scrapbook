@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm install
 
-COPY memories_server.js ./
+COPY memories_server.js memories_common_functions.js ./
 # Volumes for data and uploads will be mounted at runtime
 
 EXPOSE 3002

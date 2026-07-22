@@ -3,7 +3,7 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const common = require('./ds/memories_common_functions');
+const common = require('./memories_common_functions');
 
 const app = express();
 const PORT = 3002;

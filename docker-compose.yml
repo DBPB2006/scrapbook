@@ -21,7 +21,7 @@ services:
     container_name: scrapbook_auth
     volumes:
       - ./auth-service/data:/usr/src/app/data
-      - ./auth-service/ds:/usr/src/app/ds
+
       - ./uploads:/usr/src/app/uploads
 
   memories-service:
@@ -29,7 +29,7 @@ services:
     container_name: scrapbook_memories
     volumes:
       - ./memories-service/data:/usr/src/app/data
-      - ./memories-service/ds:/usr/src/app/ds
+
       - ./uploads:/usr/src/app/uploads
 
   social-service:
@@ -37,7 +37,7 @@ services:
     container_name: scrapbook_social
     volumes:
       - ./social-service/data:/usr/src/app/data
-      - ./social-service/ds:/usr/src/app/ds
+
       - ./uploads:/usr/src/app/uploads
 
   sharing-service:
@@ -45,7 +45,7 @@ services:
     container_name: scrapbook_sharing
     volumes:
       - ./sharing-service/data:/usr/src/app/data
-      - ./sharing-service/ds:/usr/src/app/ds
+
       - ./uploads:/usr/src/app/uploads
 
   ds-service:

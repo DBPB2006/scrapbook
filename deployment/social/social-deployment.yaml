@@ -12,6 +12,8 @@ spec:
       labels:
         app: social
     spec:
+      imagePullSecrets:
+        - name: ecr-secret
       containers:
       - name: social
         image: 929140636859.dkr.ecr.ap-south-1.amazonaws.com/scrapbook-social:latest

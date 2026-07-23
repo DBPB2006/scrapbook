@@ -12,6 +12,8 @@ spec:
       labels:
         app: auth
     spec:
+      imagePullSecrets:
+        - name: ecr-secret
       containers:
       - name: auth
         image: 929140636859.dkr.ecr.ap-south-1.amazonaws.com/scrapbook-auth:latest

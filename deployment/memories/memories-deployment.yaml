@@ -12,6 +12,8 @@ spec:
       labels:
         app: memories
     spec:
+      imagePullSecrets:
+        - name: ecr-secret
       containers:
       - name: memories
         image: 929140636859.dkr.ecr.ap-south-1.amazonaws.com/scrapbook-memories:latest

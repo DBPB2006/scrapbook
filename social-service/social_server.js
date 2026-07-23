@@ -42,9 +42,15 @@ app.get('/api/friends', isAuthenticated, async (req, res) => {
     const currentEmail = req.userEmail;
     
     let allUsers = [];
+    let usersData = {};
     try {
-        const usersRes = await axios.get(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/users`, { headers: { 'x-user-email': currentEmail } });
-        allUsers = usersRes.data;
+        const usersRes = await axios.get(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/internal/users/raw`);
+        usersData = usersRes.data;
+        for (const bucket in usersData) {
+            for (const email in usersData[bucket]) {
+                allUsers.push(usersData[bucket][email]);
+            }
+        }
     } catch(err) { console.error('Failed to fetch users'); }
     
     const user = allUsers.find(u => u.email === currentEmail) || {};
@@ -129,9 +135,15 @@ app.delete('/api/friends/:id', isAuthenticated, async (req, res) => {
     const friendId = req.params.id;
     
     let allUsers = [];
+    let usersData = {};
     try {
-        const usersRes = await axios.get(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/users`, { headers: { 'x-user-email': currentEmail } });
-        allUsers = usersRes.data;
+        const usersRes = await axios.get(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/internal/users/raw`);
+        usersData = usersRes.data;
+        for (const bucket in usersData) {
+            for (const email in usersData[bucket]) {
+                allUsers.push(usersData[bucket][email]);
+            }
+        }
     } catch(err) { console.error('Failed to fetch users'); }
     
     const user = allUsers.find(u => u.email === currentEmail) || { email: currentEmail };

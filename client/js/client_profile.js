@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             async function loadProfile() {
                 try {
-                    const res = await axios.get('/api/profile_data');
+                    const res = await axios.get('/api/users/profile_data');
                     const user = res.data;
                     document.getElementById('first_name').value = user.first_name || '';
                     document.getElementById('last_name').value = user.last_name || '';
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 if (confirm('Remove this friend?')) {
                                     const fid = e.currentTarget.getAttribute('data-id');
                                     try {
-                                        await axios.post('/api/profile/remove_friend', { remove_friend_id: fid });
+                                        await axios.post('/api/users/profile/remove_friend', { remove_friend_id: fid });
                                         showMessage('success', 'Friend removed successfully');
                                         loadProfile();
                                     } catch (err) {
@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 try {
-                    const res = await axios.post('/api/profile/update', formData, {
+                    const res = await axios.post('/api/users/profile/update', formData, {
                         headers: { 'Content-Type': 'multipart/form-data' }
                     });
                     showMessage('success', res.data.message);
@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const confirm_password = document.getElementById('confirm_password').value;
                 
                 try {
-                    const res = await axios.post('/api/profile/password', { old_password, new_password, confirm_password });
+                    const res = await axios.post('/api/users/profile/password', { old_password, new_password, confirm_password });
                     showMessage('success', res.data.message);
                     document.getElementById('passwordForm').reset();
                 } catch (err) {
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('deleteAccountBtn').addEventListener('click', async () => {
                 if (confirm('Are you sure you want to delete your account? This action cannot be undone and you will lose all your memories.')) {
                     try {
-                        await axios.post('/api/profile/delete_account');
+                        await axios.post('/api/users/profile/delete_account');
                         window.location.href="/signup.html?deleted=1";
                     } catch (err) {
                         showMessage('error', 'Failed to delete account');

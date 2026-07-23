@@ -167,9 +167,13 @@ app.get('/api/users', isAuthenticated, async (req, res) => {
     for (const bucket in allUsers) {
         for (const email in allUsers[bucket]) {
             const u = allUsers[bucket][email];
+            let displayName = u.name;
+            if (!displayName && (u.first_name || u.last_name || u.firstName || u.lastName)) {
+                displayName = `${u.first_name || u.firstName || ''} ${u.last_name || u.lastName || ''}`.trim();
+            }
             flatUsers.push({
                 email: u.email,
-                name: u.name,
+                name: displayName,
                 username: u.username,
                 profile_pic: u.profile_pic
             });

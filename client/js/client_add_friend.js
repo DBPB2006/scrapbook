@@ -16,12 +16,22 @@ document.addEventListener('DOMContentLoaded', async function() {
         document.getElementById('friendName').value = this.value;
         const query = this.value.trim().toLowerCase();
         userSuggestions.innerHTML = '';
-        if (query.length < 1) return;
+        if (query.length < 1) {
+            userSuggestions.classList.add('hidden');
+            return;
+        }
 
-        const matches = allUsers.filter(u => 
-            u.name.toLowerCase().includes(query) || 
-            u.email.toLowerCase().includes(query)
-        );
+        const matches = allUsers.filter(u => {
+            const nameMatch = u.name ? u.name.toLowerCase().includes(query) : false;
+            const emailMatch = u.email ? u.email.toLowerCase().includes(query) : false;
+            return nameMatch || emailMatch;
+        });
+
+        if (matches.length > 0) {
+            userSuggestions.classList.remove('hidden');
+        } else {
+            userSuggestions.classList.add('hidden');
+        }
 
         matches.forEach(user => {
             const div = document.createElement('div');
@@ -32,6 +42,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 document.getElementById('friendEmail').value = user.email;
                 userSearchInput.value = user.name;
                 userSuggestions.innerHTML = '';
+                userSuggestions.classList.add('hidden');
             };
             userSuggestions.appendChild(div);
         });
@@ -40,6 +51,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     document.addEventListener('click', function(e) {
         if (!userSearchInput.contains(e.target) && !userSuggestions.contains(e.target)) {
             userSuggestions.innerHTML = '';
+            userSuggestions.classList.add('hidden');
         }
     });
 

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-config
+data:
+  PORT: "3001"
+  UPLOAD_DIR: "/usr/src/app/uploads/"
+  DS_SERVICE_URL: "http://ds-service:3005"
+  MEMORIES_SERVICE_URL: "http://memories-service:3002"
+  SHARING_SERVICE_URL: "http://sharing-service:3004"
+  NODE_ENV: "production"

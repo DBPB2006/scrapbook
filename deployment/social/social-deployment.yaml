@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: social-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: social
+  template:
+    metadata:
+      labels:
+        app: social
+    spec:
+      containers:
+      - name: social
+        image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/scrapbook-social:latest
+        ports:
+        - containerPort: 3003
+        envFrom:
+        - configMapRef:
+            name: social-config
+        - secretRef:
+            name: scrapbook-secrets
+        volumeMounts:
+        - name: social-data
+          mountPath: /usr/src/app/data
+        - name: uploads-data
+          mountPath: /usr/src/app/uploads
+      volumes:
+      - name: social-data
+        persistentVolumeClaim:
+          claimName: social-pvc
+      - name: uploads-data
+        persistentVolumeClaim:
+          claimName: uploads-pvc

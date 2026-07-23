@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sharing-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sharing
+  template:
+    metadata:
+      labels:
+        app: sharing
+    spec:
+      containers:
+      - name: sharing
+        image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/scrapbook-sharing:latest
+        ports:
+        - containerPort: 3004
+        envFrom:
+        - configMapRef:
+            name: sharing-config
+        - secretRef:
+            name: scrapbook-secrets
+        volumeMounts:
+        - name: sharing-data
+          mountPath: /usr/src/app/data
+        - name: uploads-data
+          mountPath: /usr/src/app/uploads
+      volumes:
+      - name: sharing-data
+        persistentVolumeClaim:
+          claimName: sharing-pvc
+      - name: uploads-data
+        persistentVolumeClaim:
+          claimName: uploads-pvc

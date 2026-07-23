@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth
+  template:
+    metadata:
+      labels:
+        app: auth
+    spec:
+      containers:
+      - name: auth
+        image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/scrapbook-auth:latest
+        ports:
+        - containerPort: 3001
+        envFrom:
+        - configMapRef:
+            name: auth-config
+        - secretRef:
+            name: scrapbook-secrets
+        volumeMounts:
+        - name: auth-data
+          mountPath: /usr/src/app/data
+        - name: uploads-data
+          mountPath: /usr/src/app/uploads
+      volumes:
+      - name: auth-data
+        persistentVolumeClaim:
+          claimName: auth-pvc
+      - name: uploads-data
+        persistentVolumeClaim:
+          claimName: uploads-pvc

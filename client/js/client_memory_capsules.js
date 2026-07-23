@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load capsules
     async function loadCapsules() {
         try {
-            const res = await axios.get('/api/capsules');
+            const res = await axios.get('/api/capsules?t=' + Date.now());
             const capsules = res.data;
             
             const list = document.getElementById('capsulesList');
@@ -288,7 +288,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 return;
             }
-
             if (diffMs <= 0) {
                 el.textContent = 'Ready to unlock! Refresh page.';
                 return;

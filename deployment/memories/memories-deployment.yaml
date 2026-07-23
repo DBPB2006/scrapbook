@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memories-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memories
+  template:
+    metadata:
+      labels:
+        app: memories
+    spec:
+      containers:
+      - name: memories
+        image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/scrapbook-memories:latest
+        ports:
+        - containerPort: 3002
+        envFrom:
+        - configMapRef:
+            name: memories-config
+        - secretRef:
+            name: scrapbook-secrets
+        volumeMounts:
+        - name: memories-data
+          mountPath: /usr/src/app/data
+        - name: uploads-data
+          mountPath: /usr/src/app/uploads
+      volumes:
+      - name: memories-data
+        persistentVolumeClaim:
+          claimName: memories-pvc
+      - name: uploads-data
+        persistentVolumeClaim:
+          claimName: uploads-pvc

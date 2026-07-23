@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+      - name: gateway
+        image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/scrapbook-gateway:latest
+        ports:
+        - containerPort: 3090
+        envFrom:
+        - configMapRef:
+            name: gateway-config
+        - secretRef:
+            name: scrapbook-secrets
+        volumeMounts:
+        - name: uploads-data
+          mountPath: /usr/src/app/uploads
+      volumes:
+      - name: uploads-data
+        persistentVolumeClaim:
+          claimName: uploads-pvc

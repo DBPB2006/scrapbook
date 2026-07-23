@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: social-config
+data:
+  PORT: "3003"
+  UPLOAD_DIR: "/usr/src/app/uploads/friends/"
+  AUTH_SERVICE_URL: "http://auth-service:3001"
+  MEMORIES_SERVICE_URL: "http://memories-service:3002"
+  DS_SERVICE_URL: "http://ds-service:3005"
+  NODE_ENV: "production"

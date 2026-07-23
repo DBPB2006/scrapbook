@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: memories-service
+spec:
+  selector:
+    app: memories
+  ports:
+    - protocol: TCP
+      port: 3002
+      targetPort: 3002
+  type: ClusterIP

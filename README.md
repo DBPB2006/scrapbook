@@ -66,3 +66,80 @@ docker-compose restart
 
 ## Running Locally (Without Docker)
 For local development without Docker, you can create a `.env` file in each microservice directory using the provided `.env.example` template and run `npm install && node <service>_server.js`.
+
+## Production Deployment (AWS / Kubernetes)
+
+The repository contains the final deployment configuration for a single-node Kubernetes (K3s) cluster running on an AWS EC2 instance. All deployment manifests are located in the `deployment/` directory.
+
+### 1. Build Docker Images
+Build the Docker images for all microservices from the project root:
+```bash
+for SERVICE in gateway auth memories social sharing ds; do
+  docker build -t scrapbook_${SERVICE}:latest -f ${SERVICE}-service/Dockerfile .
+done
+```
+
+### 2. Authenticate with Amazon ECR
+```bash
+export AWS_REGION="us-east-1"
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+```
+
+### 3. Tag Images
+```bash
+for SERVICE in gateway auth memories social sharing ds; do
+  docker tag scrapbook_${SERVICE}:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/scrapbook-${SERVICE}:latest
+done
+```
+
+### 4. Push Images to ECR
+Ensure your ECR repositories are created, then push the images:
+```bash
+for SERVICE in gateway auth memories social sharing ds; do
+  docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/scrapbook-${SERVICE}:latest
+done
+```
+
+### 5. EC2 Instance Preparation
+1. Launch an Ubuntu 22.04 or Amazon Linux 2023 EC2 instance (minimum `t3.medium`).
+2. Attach an IAM role with `AmazonEC2ContainerRegistryReadOnly` permissions.
+3. Allow inbound TCP on port `30090` (Gateway NodePort) in the Security Group.
+4. SSH into the instance and install K3s:
+   ```bash
+   curl -sfL https://get.k3s.io | sh -
+   mkdir -p ~/.kube && sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+   sudo chown $(id -u):$(id -g) ~/.kube/config
+   ```
+
+### 6. Deploy Kubernetes Manifests
+Once your EC2 instance is ready, clone this repository onto the instance. Then, deploy the manifests in order:
+```bash
+# Apply configuration and storage
+kubectl apply -f deployment/config/
+kubectl apply -f deployment/storage/
+
+# Apply microservices
+for svc in auth ds gateway memories sharing social; do
+  kubectl apply -f deployment/${svc}/
+done
+```
+
+### 7. Verify Deployment
+Verify that the pods, services, and storage are running correctly:
+```bash
+# Verify Pods
+kubectl get pods
+
+# Verify Services
+kubectl get svc
+
+# Verify Persistent Volumes
+kubectl get pvc
+```
+
+### 8. Accessing the Application
+The Gateway service is exposed externally using a `NodePort`. Once the pods are fully running, you can access the application via your EC2 instance's public IP:
+```
+http://<EC2_PUBLIC_IP>:30090
+```

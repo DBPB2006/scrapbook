@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ds-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ds
+  template:
+    metadata:
+      labels:
+        app: ds
+    spec:
+      containers:
+      - name: ds
+        image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/scrapbook-ds:latest
+        ports:
+        - containerPort: 3005
+        envFrom:
+        - configMapRef:
+            name: ds-config
+        - secretRef:
+            name: scrapbook-secrets

@@ -3,11 +3,11 @@ FROM node:18-alpine
 WORKDIR /usr/src/app
 
 ENV NODE_ENV=production
-COPY package*.json ./
+COPY gateway-service/package*.json ./
 RUN npm install
 
-COPY gateway_server.js ./
-# We don't copy pages or uploads here, they will be mounted via docker-compose
+COPY gateway-service/gateway_server.js ./
+COPY client/ ./pages/
 
 EXPOSE 3090
 

@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             try {
-                const res = await axios.get('/api/capsules/' + capsuleId);
+                const res = await axios.get('/api/capsules/' + capsuleId + '?t=' + Date.now());
                 const { capsule, otherCapsules } = res.data;
                 const isUnlocked = capsule.unlocked == 1;
 

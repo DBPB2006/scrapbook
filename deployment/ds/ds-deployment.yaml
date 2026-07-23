@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: ds
-        image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/scrapbook-ds:latest
+        image: 929140636859.dkr.ecr.ap-south-1.amazonaws.com/scrapbook-ds:latest
         ports:
         - containerPort: 3005
         envFrom:

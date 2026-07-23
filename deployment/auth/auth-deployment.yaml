@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: auth
-        image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/scrapbook-auth:latest
+        image: 929140636859.dkr.ecr.ap-south-1.amazonaws.com/scrapbook-auth:latest
         ports:
         - containerPort: 3001
         envFrom:

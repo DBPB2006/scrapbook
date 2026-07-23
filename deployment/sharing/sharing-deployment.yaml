@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: sharing
-        image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/scrapbook-sharing:latest
+        image: 929140636859.dkr.ecr.ap-south-1.amazonaws.com/scrapbook-sharing:latest
         ports:
         - containerPort: 3004
         envFrom:

@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: social
-        image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/scrapbook-social:latest
+        image: 929140636859.dkr.ecr.ap-south-1.amazonaws.com/scrapbook-social:latest
         ports:
         - containerPort: 3003
         envFrom:

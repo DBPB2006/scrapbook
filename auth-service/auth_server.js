@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
@@ -6,17 +7,23 @@ const common = require('./auth_common_functions');
 const userStore = {
     load_users: () => common.loadUsers(),
     save_users: (users) => common.saveUsers(users),
-    get_bucket: async (email) => { const users = common.loadUsers(); const res = await axios.post("http://ds-service:3005/api/ds/bucket/get_user", { users, email }); return res.data.bucket; },
-    get_user: async (email) => { const users = common.loadUsers(); const res = await axios.post("http://ds-service:3005/api/ds/bucket/get_user", { users, email }); return res.data.user; },
-    add_user: async (email, details) => { const users = common.loadUsers(); const res = await axios.post("http://ds-service:3005/api/ds/bucket/add_user", { users, email, details }); common.saveUsers(res.data.users); },
-    username_exists: async (username) => { const users = common.loadUsers(); const res = await axios.post("http://ds-service:3005/api/ds/bucket/username_exists", { users, username }); return res.data.exists; }
+    get_bucket: async (email) => { const users = common.loadUsers(); const res = await axios.post(`${process.env.DS_SERVICE_URL || 'http://ds-service:3005'}/api/ds/bucket/get_user`, { users, email }); return res.data.bucket; },
+    get_user: async (email) => { const users = common.loadUsers(); const res = await axios.post(`${process.env.DS_SERVICE_URL || 'http://ds-service:3005'}/api/ds/bucket/get_user`, { users, email }); return res.data.user; },
+    add_user: async (email, details) => { const users = common.loadUsers(); const res = await axios.post(`${process.env.DS_SERVICE_URL || 'http://ds-service:3005'}/api/ds/bucket/add_user`, { users, email, details }); common.saveUsers(res.data.users); },
+    username_exists: async (username) => { const users = common.loadUsers(); const res = await axios.post(`${process.env.DS_SERVICE_URL || 'http://ds-service:3005'}/api/ds/bucket/username_exists`, { users, username }); return res.data.exists; }
 };
 const multer = require('multer');
 const path = require('path');
 const axios = require('axios');
+const fs = require('fs');
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
+
+const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads/');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 app.use(cors());
 app.use(express.json());
@@ -25,7 +32,7 @@ app.use(express.urlencoded({ extended: true }));
 // Storage config for multer
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, './uploads/')
+        cb(null, uploadDir)
     },
     filename: function (req, file, cb) {
         cb(null, 'avatar_' + Date.now() + path.extname(file.originalname))
@@ -266,7 +273,7 @@ app.get('/api/dashboard_data', isAuthenticated, async (req, res) => {
     
     let allMemories = [];
     try {
-        const memRes = await axios.get('http://memories-service:3002/api/internal/memories');
+        const memRes = await axios.get(`${process.env.MEMORIES_SERVICE_URL || 'http://memories-service:3002'}/api/internal/memories`);
         allMemories = memRes.data;
     } catch(err) { console.error('Failed to fetch memories'); }
     
@@ -295,7 +302,7 @@ app.get('/api/dashboard_data', isAuthenticated, async (req, res) => {
 
     let allShared = [];
     try {
-        const shareRes = await axios.get('http://sharing-service:3004/api/internal/shared_memories');
+        const shareRes = await axios.get(`${process.env.SHARING_SERVICE_URL || 'http://sharing-service:3004'}/api/internal/shared_memories`);
         allShared = shareRes.data;
     } catch(err) { console.error('Failed to fetch shared memories'); }
     
@@ -323,6 +330,20 @@ app.get('/api/dashboard_data', isAuthenticated, async (req, res) => {
     });
 });
 
-app.listen(PORT, () => {
+app.get('/health', (req, res) => {
+    res.json({ status: 'UP', service: 'auth-service' });
+});
+
+const server = app.listen(PORT, () => {
     console.log(`Auth Service running on port ${PORT}`);
 });
+
+const shutdown = () => {
+    console.log('Shutting down gracefully...');
+    server.close(() => {
+        console.log('Closed out remaining connections');
+        process.exit(0);
+    });
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

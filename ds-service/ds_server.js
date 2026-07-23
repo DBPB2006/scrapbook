@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { PriorityQueue } = require('./src/ds_priority_queue');
@@ -6,7 +7,7 @@ const networkMatrix = require('./src/ds_network_matrix');
 const bucketStore = require('./src/ds_bucketed_user_store');
 
 const app = express();
-const PORT = 3005;
+const PORT = process.env.PORT || 3005;
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -107,6 +108,20 @@ app.post('/api/ds/bucket/username_exists', (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
+app.get('/health', (req, res) => {
+    res.json({ status: 'UP', service: 'ds-service' });
+});
+
+const server = app.listen(PORT, () => {
     console.log(`DS Service running on port ${PORT}`);
 });
+
+const shutdown = () => {
+    console.log('Shutting down gracefully...');
+    server.close(() => {
+        console.log('Closed out remaining connections');
+        process.exit(0);
+    });
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

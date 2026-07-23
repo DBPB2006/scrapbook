@@ -23,6 +23,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 const formData = new FormData(form);
                 
+                const profilePicInput = document.getElementById('profilePic');
+                if (profilePicInput && profilePicInput.files.length === 0) {
+                    formData.delete('profilePic');
+                }
+                
                 // Validate fields manually as simple version
                 if (formData.get('password') !== formData.get('confirmPassword')) {
                     showMessage('error', 'Passwords do not match');

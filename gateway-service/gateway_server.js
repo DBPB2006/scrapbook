@@ -1,10 +1,12 @@
+require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const session = require('express-session');
 const cors = require('cors');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
-const PORT = 3090;
+const PORT = process.env.PORT || 3090;
 
 app.use(cors());
 
@@ -17,7 +19,7 @@ app.use(session({
 
 // Serve static pages and uploads (these will be volume mounted in docker)
 app.use(express.static('pages'));
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static(process.env.UPLOAD_DIR || path.join(__dirname, 'uploads/')));
 
 // Middleware to inject session data into headers for downstream services
 const injectSessionHeader = (req, res, next) => {
@@ -49,24 +51,42 @@ const proxyOptions = (target) => ({
 });
 
 // Auth & Users Service
-app.use('/api/login', createProxyMiddleware(proxyOptions('http://auth-service:3001')));
-app.use('/api/signup', createProxyMiddleware(proxyOptions('http://auth-service:3001')));
-app.use('/api/logout', createProxyMiddleware(proxyOptions('http://auth-service:3001')));
-app.use('/api/current_user', createProxyMiddleware(proxyOptions('http://auth-service:3001')));
-app.use('/api/users', createProxyMiddleware(proxyOptions('http://auth-service:3001')));
-app.use('/api/dashboard_data', createProxyMiddleware(proxyOptions('http://auth-service:3001')));
+const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://auth-service:3001';
+app.use('/api/login', createProxyMiddleware(proxyOptions(authServiceUrl)));
+app.use('/api/signup', createProxyMiddleware(proxyOptions(authServiceUrl)));
+app.use('/api/logout', createProxyMiddleware(proxyOptions(authServiceUrl)));
+app.use('/api/current_user', createProxyMiddleware(proxyOptions(authServiceUrl)));
+app.use('/api/users', createProxyMiddleware(proxyOptions(authServiceUrl)));
+app.use('/api/dashboard_data', createProxyMiddleware(proxyOptions(authServiceUrl)));
 
 // Core Memories Service
-app.use('/api/memories', createProxyMiddleware(proxyOptions('http://memories-service:3002')));
+const memoriesServiceUrl = process.env.MEMORIES_SERVICE_URL || 'http://memories-service:3002';
+app.use('/api/memories', createProxyMiddleware(proxyOptions(memoriesServiceUrl)));
 
 // Social Service
-app.use('/api/friends', createProxyMiddleware(proxyOptions('http://social-service:3003')));
-app.use('/api/friendship_graph', createProxyMiddleware(proxyOptions('http://social-service:3003')));
+const socialServiceUrl = process.env.SOCIAL_SERVICE_URL || 'http://social-service:3003';
+app.use('/api/friends', createProxyMiddleware(proxyOptions(socialServiceUrl)));
+app.use('/api/friendship_graph', createProxyMiddleware(proxyOptions(socialServiceUrl)));
 
 // Sharing Service
-app.use('/api/capsules', createProxyMiddleware(proxyOptions('http://sharing-service:3004')));
-app.use('/api/shared_memories', createProxyMiddleware(proxyOptions('http://sharing-service:3004')));
+const sharingServiceUrl = process.env.SHARING_SERVICE_URL || 'http://sharing-service:3004';
+app.use('/api/capsules', createProxyMiddleware(proxyOptions(sharingServiceUrl)));
+app.use('/api/shared_memories', createProxyMiddleware(proxyOptions(sharingServiceUrl)));
 
-app.listen(PORT, () => {
+app.get('/health', (req, res) => {
+    res.json({ status: 'UP', service: 'gateway-service' });
+});
+
+const server = app.listen(PORT, () => {
     console.log(`API Gateway running at http://localhost:${PORT}`);
 });
+
+const shutdown = () => {
+    console.log('Shutting down gracefully...');
+    server.close(() => {
+        console.log('Closed out remaining connections');
+        process.exit(0);
+    });
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

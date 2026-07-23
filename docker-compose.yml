@@ -4,8 +4,16 @@ services:
   gateway-service:
     build: ./gateway-service
     container_name: scrapbook_gateway
+    restart: always
     ports:
       - "3090:3090"
+    environment:
+      - PORT=3090
+      - UPLOAD_DIR=/usr/src/app/uploads/
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - MEMORIES_SERVICE_URL=http://memories-service:3002
+      - SOCIAL_SERVICE_URL=http://social-service:3003
+      - SHARING_SERVICE_URL=http://sharing-service:3004
     volumes:
       - ./client:/usr/src/app/pages
       - ./uploads:/usr/src/app/uploads
@@ -19,37 +27,59 @@ services:
   auth-service:
     build: ./auth-service
     container_name: scrapbook_auth
+    restart: always
+    environment:
+      - PORT=3001
+      - UPLOAD_DIR=/usr/src/app/uploads/
+      - DS_SERVICE_URL=http://ds-service:3005
+      - MEMORIES_SERVICE_URL=http://memories-service:3002
+      - SHARING_SERVICE_URL=http://sharing-service:3004
     volumes:
       - ./auth-service/data:/usr/src/app/data
-
       - ./uploads:/usr/src/app/uploads
 
   memories-service:
     build: ./memories-service
     container_name: scrapbook_memories
+    restart: always
+    environment:
+      - PORT=3002
+      - UPLOAD_DIR=/usr/src/app/uploads/
     volumes:
       - ./memories-service/data:/usr/src/app/data
-
       - ./uploads:/usr/src/app/uploads
 
   social-service:
     build: ./social-service
     container_name: scrapbook_social
+    restart: always
+    environment:
+      - PORT=3003
+      - UPLOAD_DIR=/usr/src/app/uploads/friends/
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - MEMORIES_SERVICE_URL=http://memories-service:3002
+      - DS_SERVICE_URL=http://ds-service:3005
     volumes:
       - ./social-service/data:/usr/src/app/data
-
       - ./uploads:/usr/src/app/uploads
 
   sharing-service:
     build: ./sharing-service
     container_name: scrapbook_sharing
+    restart: always
+    environment:
+      - PORT=3004
+      - UPLOAD_DIR=/usr/src/app/uploads/
+      - DS_SERVICE_URL=http://ds-service:3005
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - MEMORIES_SERVICE_URL=http://memories-service:3002
     volumes:
       - ./sharing-service/data:/usr/src/app/data
-
       - ./uploads:/usr/src/app/uploads
 
   ds-service:
     build: ./ds-service
     container_name: scrapbook_ds
-    ports:
-      - "3005:3005"
+    restart: always
+    environment:
+      - PORT=3005

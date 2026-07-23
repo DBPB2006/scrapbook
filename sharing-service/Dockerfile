@@ -2,8 +2,9 @@ FROM node:18-alpine
 
 WORKDIR /usr/src/app
 
+ENV NODE_ENV=production
 COPY package*.json ./
-RUN npm install
+RUN npm ci --omit=dev
 
 COPY sharing_server.js sharing_common_functions.js ./
 # Volumes for data and uploads will be mounted at runtime

@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
@@ -7,13 +8,13 @@ const axios = require('axios');
 const common = require('./sharing_common_functions');
 
 const app = express();
-const PORT = 3004;
+const PORT = process.env.PORT || 3004;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const uploadDir = path.join(__dirname, 'uploads/');
+const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads/');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -49,7 +50,7 @@ app.get('/api/capsules', isAuthenticated, async (req, res) => {
         if (c.user_email === currentEmail || c.recipient_email === currentEmail) {
             if (c.unlocked != 1 && c.reveal_date) {
                 try {
-                    const dsRes = await axios.post('http://ds-service:3005/api/ds/stack/isUnlocked', { reveal_date: c.reveal_date });
+                    const dsRes = await axios.post(`${process.env.DS_SERVICE_URL || 'http://ds-service:3005'}/api/ds/stack/isUnlocked`, { reveal_date: c.reveal_date });
                     if (dsRes.data.unlocked) {
                         c.unlocked = 1;
                         updated = true;
@@ -66,7 +67,7 @@ app.get('/api/capsules', isAuthenticated, async (req, res) => {
 
     let sortedCapsules = userCapsules;
     try {
-        const pqRes = await axios.post('http://ds-service:3005/api/ds/pq/sort', { capsules: userCapsules });
+        const pqRes = await axios.post(`${process.env.DS_SERVICE_URL || 'http://ds-service:3005'}/api/ds/pq/sort`, { capsules: userCapsules });
         sortedCapsules = pqRes.data;
     } catch(err) { console.error('DS sort failed', err.message); }
     
@@ -125,7 +126,7 @@ app.get('/api/capsules/:id', isAuthenticated, async (req, res) => {
             capsule = c;
             if (c.unlocked != 1 && c.reveal_date) {
                 try {
-                    const dsRes = await axios.post('http://ds-service:3005/api/ds/stack/isUnlocked', { reveal_date: c.reveal_date });
+                    const dsRes = await axios.post(`${process.env.DS_SERVICE_URL || 'http://ds-service:3005'}/api/ds/stack/isUnlocked`, { reveal_date: c.reveal_date });
                     if (dsRes.data.unlocked) {
                         capsules[i].unlocked = 1;
                         capsule.unlocked = 1;
@@ -174,7 +175,7 @@ app.post('/api/shared_memories', isAuthenticated, upload.array('attachments[]'),
     
     let allUsers = [];
     try {
-        const usersRes = await axios.get('http://auth-service:3001/api/users', { headers: { 'x-user-email': currentEmail } });
+        const usersRes = await axios.get(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/users`, { headers: { 'x-user-email': currentEmail } });
         allUsers = usersRes.data;
     } catch(err) { console.error(err); }
     
@@ -199,7 +200,7 @@ app.post('/api/shared_memories', isAuthenticated, upload.array('attachments[]'),
     let originalMemory = null;
     if (selected_memory_id) {
         try {
-            const memRes = await axios.get('http://memories-service:3002/api/internal/memories');
+            const memRes = await axios.get(`${process.env.MEMORIES_SERVICE_URL || 'http://memories-service:3002'}/api/internal/memories`);
             const allMemories = memRes.data;
             originalMemory = allMemories.find(m => m.memory_id === selected_memory_id && m.owner === currentEmail);
         } catch(err) { console.error('Failed to fetch memories'); }
@@ -264,6 +265,20 @@ app.get('/api/shared_memories/:id', isAuthenticated, (req, res) => {
     res.json({ sharedMemory, receivedMemories });
 });
 
-app.listen(PORT, () => {
+app.get('/health', (req, res) => {
+    res.json({ status: 'UP', service: 'sharing-service' });
+});
+
+const server = app.listen(PORT, () => {
     console.log(`Sharing Service running on port ${PORT}`);
 });
+
+const shutdown = () => {
+    console.log('Shutting down gracefully...');
+    server.close(() => {
+        console.log('Closed out remaining connections');
+        process.exit(0);
+    });
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

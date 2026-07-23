@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
@@ -6,13 +7,13 @@ const fs = require('fs');
 const common = require('./memories_common_functions');
 
 const app = express();
-const PORT = 3002;
+const PORT = process.env.PORT || 3002;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const uploadDir = path.join(__dirname, 'uploads/');
+const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads/');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -137,6 +138,20 @@ app.delete('/api/memories/:id', isAuthenticated, (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
+app.get('/health', (req, res) => {
+    res.json({ status: 'UP', service: 'memories-service' });
+});
+
+const server = app.listen(PORT, () => {
     console.log(`Memories Service running on port ${PORT}`);
 });
+
+const shutdown = () => {
+    console.log('Shutting down gracefully...');
+    server.close(() => {
+        console.log('Closed out remaining connections');
+        process.exit(0);
+    });
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

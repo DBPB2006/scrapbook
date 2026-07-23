@@ -1,7 +1,8 @@
 FROM node:18-alpine
 WORKDIR /usr/src/app
+ENV NODE_ENV=production
 COPY package*.json ./
-RUN npm install
+RUN npm ci --omit=dev
 COPY . .
 EXPOSE 3005
 CMD [ "node", "ds_server.js" ]

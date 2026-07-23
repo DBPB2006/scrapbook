@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
@@ -6,13 +7,13 @@ const fs = require('fs');
 const axios = require('axios');
 
 const app = express();
-const PORT = 3003;
+const PORT = process.env.PORT || 3003;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const uploadDir = path.join(__dirname, 'uploads/friends/');
+const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads/friends/');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -42,7 +43,7 @@ app.get('/api/friends', isAuthenticated, async (req, res) => {
     
     let allUsers = [];
     try {
-        const usersRes = await axios.get('http://auth-service:3001/api/users', { headers: { 'x-user-email': currentEmail } });
+        const usersRes = await axios.get(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/users`, { headers: { 'x-user-email': currentEmail } });
         allUsers = usersRes.data;
     } catch(err) { console.error('Failed to fetch users'); }
     
@@ -50,7 +51,7 @@ app.get('/api/friends', isAuthenticated, async (req, res) => {
     
     let allMemories = [];
     try {
-        const memRes = await axios.get('http://memories-service:3002/api/internal/memories');
+        const memRes = await axios.get(`${process.env.MEMORIES_SERVICE_URL || 'http://memories-service:3002'}/api/internal/memories`);
         allMemories = memRes.data;
     } catch(err) { console.error('Failed to fetch memories'); }
     
@@ -75,7 +76,7 @@ app.post('/api/friends', isAuthenticated, upload.single('profileImage'), async (
     let allUsers = [];
     let usersData = {};
     try {
-        const usersRes = await axios.get('http://auth-service:3001/api/internal/users/raw');
+        const usersRes = await axios.get(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/internal/users/raw`);
         usersData = usersRes.data;
         for (const bucket in usersData) {
             for (const email in usersData[bucket]) {
@@ -117,7 +118,7 @@ app.post('/api/friends', isAuthenticated, upload.single('profileImage'), async (
     user.friends.push(newFriend);
     
     try {
-        await axios.post('http://auth-service:3001/api/internal/users', user);
+        await axios.post(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/internal/users`, user);
     } catch (err) { console.error('Failed to save user'); }
 
     res.json({ success: true, message: 'Friend added successfully' });
@@ -129,7 +130,7 @@ app.delete('/api/friends/:id', isAuthenticated, async (req, res) => {
     
     let allUsers = [];
     try {
-        const usersRes = await axios.get('http://auth-service:3001/api/users', { headers: { 'x-user-email': currentEmail } });
+        const usersRes = await axios.get(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/users`, { headers: { 'x-user-email': currentEmail } });
         allUsers = usersRes.data;
     } catch(err) { console.error('Failed to fetch users'); }
     
@@ -138,7 +139,7 @@ app.delete('/api/friends/:id', isAuthenticated, async (req, res) => {
     if (user.friends) {
         user.friends = user.friends.filter(f => f.friend_id !== friendId && f.id !== friendId);
         try {
-            await axios.post('http://auth-service:3001/api/internal/users', user);
+            await axios.post(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/internal/users`, user);
         } catch (err) { console.error('Failed to save user'); }
     }
     
@@ -150,7 +151,7 @@ app.get('/api/friendship_graph', isAuthenticated, async (req, res) => {
     
     let usersData = {};
     try {
-        const usersRes = await axios.get('http://auth-service:3001/api/internal/users/raw');
+        const usersRes = await axios.get(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/internal/users/raw`);
         usersData = usersRes.data;
     } catch(err) { console.error('Failed to fetch users'); }
 
@@ -163,7 +164,7 @@ app.get('/api/friendship_graph', isAuthenticated, async (req, res) => {
 
     let nodes = {}, emails = [], emailIndexMap = {}, friendshipMatrix = [];
     try {
-        const dsRes = await axios.post('http://ds-service:3005/api/ds/network/matrix', { usersData, allUsers });
+        const dsRes = await axios.post(`${process.env.DS_SERVICE_URL || 'http://ds-service:3005'}/api/ds/network/matrix`, { usersData, allUsers });
         ({ nodes, emails, emailIndexMap, friendshipMatrix } = dsRes.data);
     } catch(err) { console.error('Failed to build matrix via DS service'); }
 
@@ -171,7 +172,7 @@ app.get('/api/friendship_graph', isAuthenticated, async (req, res) => {
 
     let allMemories = [];
     try {
-        const memRes = await axios.get('http://memories-service:3002/api/internal/memories');
+        const memRes = await axios.get(`${process.env.MEMORIES_SERVICE_URL || 'http://memories-service:3002'}/api/internal/memories`);
         allMemories = memRes.data;
     } catch(err) { console.error('Failed to fetch memories'); }
     
@@ -239,7 +240,7 @@ app.get('/api/friendship_graph', isAuthenticated, async (req, res) => {
 
     let suggestedEmails = [];
     try {
-        const suggRes = await axios.post('http://ds-service:3005/api/ds/network/suggestions', {
+        const suggRes = await axios.post(`${process.env.DS_SERVICE_URL || 'http://ds-service:3005'}/api/ds/network/suggestions`, {
             friendshipMatrix, emailIndexMap, emails, currentEmail, friendGraph
         });
         suggestedEmails = suggRes.data.suggestions || [];
@@ -261,6 +262,20 @@ app.get('/api/friendship_graph', isAuthenticated, async (req, res) => {
     });
 });
 
-app.listen(PORT, () => {
+app.get('/health', (req, res) => {
+    res.json({ status: 'UP', service: 'social-service' });
+});
+
+const server = app.listen(PORT, () => {
     console.log(`Social Service running on port ${PORT}`);
 });
+
+const shutdown = () => {
+    console.log('Shutting down gracefully...');
+    server.close(() => {
+        console.log('Closed out remaining connections');
+        process.exit(0);
+    });
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

@@ -21,26 +21,23 @@ pipeline {
 
         stage('Build & Push Images') {
             steps {
+
                 sh '''
                 docker buildx inspect builder >/dev/null 2>&1 || docker buildx create --name builder --use
                 docker buildx use builder
                 '''
 
                 withCredentials([
-    usernamePassword(
-        credentialsId: 'aws-credentials',
-        usernameVariable: 'AWS_ACCESS_KEY_ID',
-        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-    )
-]) {
+                    usernamePassword(
+                        credentialsId: 'aws-credentials',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
 
-    sh """
-    aws ecr get-login-password --region ${AWS_REGION} | \
-    docker login --username AWS --password-stdin ${ECR_REGISTRY}
-    """
-
-    // build & push commands
-}
+                    sh """
+                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                    """
 
                     script {
 
@@ -59,11 +56,11 @@ pipeline {
 
                             sh """
                             docker buildx build \
-                                --platform ${PLATFORM} \
-                                -f ${service}/Dockerfile \
-                                -t ${ECR_REGISTRY}/${image}:latest \
-                                ${context} \
-                                --push
+                              --platform ${PLATFORM} \
+                              -f ${service}/Dockerfile \
+                              -t ${ECR_REGISTRY}/${image}:latest \
+                              ${context} \
+                              --push
                             """
                         }
                     }

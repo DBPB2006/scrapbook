@@ -5,6 +5,9 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+
+const { S3Storage, getMediaUrl } = require('../shared/s3_storage');
+
 const common = require('./sharing_common_functions');
 
 const app = express();
@@ -19,14 +22,7 @@ if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadDir)
-    },
-    filename: function (req, file, cb) {
-        cb(null, 'shared_' + Date.now() + path.extname(file.originalname))
-    }
-});
+const storage = new S3Storage({ bucket: process.env.AWS_S3_BUCKET || 'default-bucket', prefix: 'shared/' });
 const upload = multer({ storage: storage });
 
 // Middleware to check auth from gateway header
@@ -71,6 +67,19 @@ app.get('/api/capsules', isAuthenticated, async (req, res) => {
         sortedCapsules = pqRes.data;
     } catch(err) { console.error('DS sort failed', err.message); }
     
+    sortedCapsules = await Promise.all(sortedCapsules.map(async c => {
+        const cCopy = { ...c };
+        if (cCopy.media && Array.isArray(cCopy.media)) {
+            cCopy.media = await Promise.all(cCopy.media.map(async m => {
+                if (m && m.path && typeof m.path === 'object' && m.path.provider === 's3') {
+                    return { ...m, path: await getMediaUrl(m.path) };
+                }
+                return m;
+            }));
+        }
+        return cCopy;
+    }));
+
     res.json(sortedCapsules);
 });
 
@@ -85,11 +94,19 @@ app.post('/api/capsules', isAuthenticated, upload.array('media[]'), (req, res) =
     const media = [];
     if (req.files) {
         req.files.forEach(file => {
-            media.push({
-                type: file.mimetype,
-                path: 'uploads/' + file.filename,
-                name: file.originalname
-            });
+            if (file.provider === 's3') {
+                media.push({
+                    type: file.mimeType,
+                    path: { provider: 's3', key: file.key, mimeType: file.mimeType, fileName: file.fileName, size: file.size },
+                    name: file.fileName
+                });
+            } else {
+                media.push({
+                    type: file.mimetype,
+                    path: 'uploads/' + file.filename,
+                    name: file.originalname
+                });
+            }
         });
     }
 
@@ -148,25 +165,45 @@ app.get('/api/capsules/:id', isAuthenticated, async (req, res) => {
 
     const otherCapsules = capsules.filter(c => c.id !== capsuleId && (c.user_email === currentEmail || c.recipient_email === currentEmail));
 
+    if (capsule.media && Array.isArray(capsule.media)) {
+        capsule.media = await Promise.all(capsule.media.map(async m => {
+            if (m && m.path && typeof m.path === 'object' && m.path.provider === 's3') {
+                return { ...m, path: await getMediaUrl(m.path) };
+            }
+            return m;
+        }));
+    }
+
     res.json({ capsule, otherCapsules });
 });
 
 
 // Shared Memories Routes
-app.get('/api/shared_memories', isAuthenticated, (req, res) => {
+app.get('/api/shared_memories', isAuthenticated, async (req, res) => {
     const currentEmail = req.userEmail;
     const allShared = common.loadSharedMemories();
     const userShared = allShared.filter(m => m.from === currentEmail || m.to === currentEmail);
-    const enriched = userShared.map(m => ({
-        ...m,
-        is_received: m.to === currentEmail
+    const enriched = await Promise.all(userShared.map(async m => {
+        const mCopy = { ...m, is_received: m.to === currentEmail };
+        if (mCopy.attachments && Array.isArray(mCopy.attachments)) {
+            mCopy.attachments = await Promise.all(mCopy.attachments.map(async att => await getMediaUrl(att)));
+        }
+        return mCopy;
     }));
     enriched.reverse();
     res.json(enriched);
 });
 
-app.get('/api/internal/shared_memories', (req, res) => {
-    res.json(common.loadSharedMemories());
+app.get('/api/internal/shared_memories', async (req, res) => {
+    const allShared = common.loadSharedMemories();
+    const mapped = await Promise.all(allShared.map(async m => {
+        const mCopy = { ...m };
+        if (mCopy.attachments && Array.isArray(mCopy.attachments)) {
+            mCopy.attachments = await Promise.all(mCopy.attachments.map(async att => await getMediaUrl(att)));
+        }
+        return mCopy;
+    }));
+    res.json(mapped);
 });
 
 app.post('/api/shared_memories', isAuthenticated, upload.array('attachments[]'), async (req, res) => {
@@ -193,7 +230,11 @@ app.post('/api/shared_memories', isAuthenticated, upload.array('attachments[]'),
     const attachments = [];
     if (req.files) {
         req.files.forEach(f => {
-            attachments.push('uploads/' + f.filename);
+            if (f.provider === 's3') {
+                attachments.push({ provider: 's3', key: f.key, mimeType: f.mimeType, fileName: f.fileName, size: f.size });
+            } else {
+                attachments.push('uploads/' + f.filename);
+            }
         });
     }
 
@@ -231,7 +272,7 @@ app.post('/api/shared_memories', isAuthenticated, upload.array('attachments[]'),
     res.json({ success: true, message: 'Memory shared successfully' });
 });
 
-app.get('/api/shared_memories/:id', isAuthenticated, (req, res) => {
+app.get('/api/shared_memories/:id', isAuthenticated, async (req, res) => {
     const currentEmail = req.userEmail;
     const memoryId = req.params.id;
     let allShared = common.loadSharedMemories();
@@ -261,6 +302,18 @@ app.get('/api/shared_memories/:id', isAuthenticated, (req, res) => {
     if (updated) {
         common.saveSharedMemories(allShared);
     }
+
+    if (sharedMemory.attachments && Array.isArray(sharedMemory.attachments)) {
+        sharedMemory.attachments = await Promise.all(sharedMemory.attachments.map(async att => await getMediaUrl(att)));
+    }
+    
+    receivedMemories = await Promise.all(receivedMemories.map(async rm => {
+        const rmCopy = { ...rm };
+        if (rmCopy.attachments && Array.isArray(rmCopy.attachments)) {
+            rmCopy.attachments = await Promise.all(rmCopy.attachments.map(async att => await getMediaUrl(att)));
+        }
+        return rmCopy;
+    }));
 
     res.json({ sharedMemory, receivedMemories });
 });

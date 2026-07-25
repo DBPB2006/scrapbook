@@ -17,6 +17,8 @@ const path = require('path');
 const axios = require('axios');
 const fs = require('fs');
 
+const { S3Storage, getMediaUrl } = require('../shared/s3_storage');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -30,14 +32,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Storage config for multer
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadDir)
-    },
-    filename: function (req, file, cb) {
-        cb(null, 'avatar_' + Date.now() + path.extname(file.originalname))
-    }
-});
+const storage = new S3Storage({ bucket: process.env.AWS_S3_BUCKET || 'default-bucket', prefix: 'users/' });
 const upload = multer({ storage: storage });
 
 // Middleware to check auth from gateway header
@@ -89,7 +84,7 @@ app.post('/api/signup', upload.single('profilePic'), async (req, res) => {
         username,
         email: lowerEmail,
         password: hashedPassword,
-        profile_pic: req.file ? 'uploads/' + req.file.filename : '',
+        profile_pic: req.file ? (req.file.provider === 's3' ? { provider: 's3', key: req.file.key, mimeType: req.file.mimeType, fileName: req.file.fileName, size: req.file.size } : 'uploads/' + req.file.filename) : '',
         friends: []
     };
 
@@ -153,11 +148,12 @@ app.get('/api/current_user', async (req, res) => {
     }
 });
 
-// Profile Data
 app.get('/api/users/profile_data', isAuthenticated, async (req, res) => {
     const user = await userStore.get_user(req.userEmail);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json(user);
+    const userCopy = { ...user };
+    userCopy.profile_pic = await getMediaUrl(user.profile_pic);
+    res.json(userCopy);
 });
 
 // User Search endpoint (combining from various places)
@@ -175,7 +171,7 @@ app.get('/api/users', isAuthenticated, async (req, res) => {
                 email: u.email,
                 name: displayName,
                 username: u.username,
-                profile_pic: u.profile_pic
+                profile_pic: await getMediaUrl(u.profile_pic)
             });
         }
     }
@@ -210,7 +206,7 @@ app.post('/api/users/profile/update', isAuthenticated, upload.single('profile_pi
     }
 
     if (req.file) {
-        user.profile_pic = 'uploads/' + req.file.filename;
+        user.profile_pic = req.file.provider === 's3' ? { provider: 's3', key: req.file.key, mimeType: req.file.mimeType, fileName: req.file.fileName, size: req.file.size } : 'uploads/' + req.file.filename;
     }
 
     if (email && email.toLowerCase() !== currentEmail.toLowerCase()) {

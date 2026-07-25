@@ -25,7 +25,9 @@ services:
       - ds-service
 
   auth-service:
-    build: ./auth-service
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
     container_name: scrapbook_auth
     restart: always
     environment:
@@ -39,7 +41,9 @@ services:
       - ./uploads:/usr/src/app/uploads
 
   memories-service:
-    build: ./memories-service
+    build:
+      context: .
+      dockerfile: memories-service/Dockerfile
     container_name: scrapbook_memories
     restart: always
     environment:
@@ -50,7 +54,9 @@ services:
       - ./uploads:/usr/src/app/uploads
 
   social-service:
-    build: ./social-service
+    build:
+      context: .
+      dockerfile: social-service/Dockerfile
     container_name: scrapbook_social
     restart: always
     environment:
@@ -64,7 +70,9 @@ services:
       - ./uploads:/usr/src/app/uploads
 
   sharing-service:
-    build: ./sharing-service
+    build:
+      context: .
+      dockerfile: sharing-service/Dockerfile
     container_name: scrapbook_sharing
     restart: always
     environment:

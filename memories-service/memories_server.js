@@ -4,6 +4,9 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+
+const { S3Storage, getMediaUrl } = require('../shared/s3_storage');
+
 const common = require('./memories_common_functions');
 
 const app = express();
@@ -18,14 +21,7 @@ if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadDir)
-    },
-    filename: function (req, file, cb) {
-        cb(null, 'mem_' + Date.now() + '-' + file.originalname)
-    }
-});
+const storage = new S3Storage({ bucket: process.env.AWS_S3_BUCKET || 'default-bucket', prefix: 'memories/' });
 const upload = multer({ storage: storage });
 
 // Middleware to check auth from gateway header
@@ -38,15 +34,40 @@ const isAuthenticated = (req, res, next) => {
     next();
 };
 
-app.get('/api/memories', isAuthenticated, (req, res) => {
+app.get('/api/memories', isAuthenticated, async (req, res) => {
     const currentEmail = req.userEmail;
     const allMemories = common.loadMemories();
     const userMemories = allMemories.filter(m => m.owner === currentEmail);
-    res.json(userMemories);
+    const mapped = await Promise.all(userMemories.map(async m => {
+        const mCopy = { ...m };
+        if (mCopy.media && Array.isArray(mCopy.media)) {
+            mCopy.media = await Promise.all(mCopy.media.map(async mediaItem => {
+                if (mediaItem && mediaItem.url && typeof mediaItem.url === 'object' && mediaItem.url.provider === 's3') {
+                    return { ...mediaItem, url: await getMediaUrl(mediaItem.url) };
+                }
+                return mediaItem;
+            }));
+        }
+        return mCopy;
+    }));
+    res.json(mapped);
 });
 
-app.get('/api/internal/memories', (req, res) => {
-    res.json(common.loadMemories());
+app.get('/api/internal/memories', async (req, res) => {
+    const allMemories = common.loadMemories();
+    const mapped = await Promise.all(allMemories.map(async m => {
+        const mCopy = { ...m };
+        if (mCopy.media && Array.isArray(mCopy.media)) {
+            mCopy.media = await Promise.all(mCopy.media.map(async mediaItem => {
+                if (mediaItem && mediaItem.url && typeof mediaItem.url === 'object' && mediaItem.url.provider === 's3') {
+                    return { ...mediaItem, url: await getMediaUrl(mediaItem.url) };
+                }
+                return mediaItem;
+            }));
+        }
+        return mCopy;
+    }));
+    res.json(mapped);
 });
 
 app.post('/api/memories', isAuthenticated, upload.array('memory_media[]', 10), (req, res) => {
@@ -69,11 +90,20 @@ app.post('/api/memories', isAuthenticated, upload.array('memory_media[]', 10), (
 
     let mediaPaths = [];
     if (req.files && req.files.length > 0) {
-        mediaPaths = req.files.map(file => ({
-            url: 'uploads/' + file.filename,
-            type: file.mimetype,
-            name: file.originalname // Added to match PHP logic
-        }));
+        mediaPaths = req.files.map(file => {
+            if (file.provider === 's3') {
+                return {
+                    url: { provider: 's3', key: file.key, mimeType: file.mimeType, fileName: file.fileName, size: file.size },
+                    type: file.mimeType,
+                    name: file.fileName
+                };
+            }
+            return {
+                url: 'uploads/' + file.filename,
+                type: file.mimetype,
+                name: file.originalname
+            };
+        });
     }
 
     const allMemories = common.loadMemories();
@@ -97,7 +127,7 @@ app.post('/api/memories', isAuthenticated, upload.array('memory_media[]', 10), (
     res.json({ success: true, message: 'Memory added successfully' });
 });
 
-app.get('/api/memories/:id', isAuthenticated, (req, res) => {
+app.get('/api/memories/:id', isAuthenticated, async (req, res) => {
     const currentEmail = req.userEmail;
     const memoryId = req.params.id;
     const allMemories = common.loadMemories();
@@ -111,8 +141,18 @@ app.get('/api/memories/:id', isAuthenticated, (req, res) => {
         
         const mappedMemories = userMemories.map(m => ({ id: m.memory_id, title: m.title }));
 
+        const memoryCopy = { ...memory };
+        if (memoryCopy.media && Array.isArray(memoryCopy.media)) {
+            memoryCopy.media = await Promise.all(memoryCopy.media.map(async mediaItem => {
+                if (mediaItem && mediaItem.url && typeof mediaItem.url === 'object' && mediaItem.url.provider === 's3') {
+                    return { ...mediaItem, url: await getMediaUrl(mediaItem.url) };
+                }
+                return mediaItem;
+            }));
+        }
+
         res.json({
-            memory: memory,
+            memory: memoryCopy,
             allUserMemories: mappedMemories,
             prevMemoryId,
             nextMemoryId

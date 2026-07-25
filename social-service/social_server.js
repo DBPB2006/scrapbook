@@ -6,6 +6,9 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 
+const { S3Storage, getMediaUrl } = require('../shared/s3_storage');
+
+
 const app = express();
 const PORT = process.env.PORT || 3003;
 
@@ -18,14 +21,7 @@ if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadDir)
-    },
-    filename: function (req, file, cb) {
-        cb(null, 'friend_' + Date.now() + path.extname(file.originalname))
-    }
-});
+const storage = new S3Storage({ bucket: process.env.AWS_S3_BUCKET || 'default-bucket', prefix: 'friends/' });
 const upload = multer({ storage: storage });
 
 // Middleware to check auth from gateway header
@@ -65,14 +61,15 @@ app.get('/api/friends', isAuthenticated, async (req, res) => {
     
     const friends = user.friends || [];
     
-    const friendsWithCounts = friends.map(f => {
+    const friendsWithCounts = await Promise.all(friends.map(async f => {
         const friendId = f.friend_id || f.id || f.email;
         const memCount = userMemories.filter(m => m.friends && m.friends.includes(friendId)).length;
         return {
             ...f,
-            memoryCount: memCount
+            memoryCount: memCount,
+            image_url: await getMediaUrl(f.image_url)
         };
-    });
+    }));
 
     res.json(friendsWithCounts);
 });
@@ -105,7 +102,7 @@ app.post('/api/friends', isAuthenticated, upload.single('profileImage'), async (
 
     let imgUrl = '';
     if (req.file) {
-        imgUrl = 'uploads/friends/' + req.file.filename;
+        imgUrl = req.file.provider === 's3' ? { provider: 's3', key: req.file.key, mimeType: req.file.mimeType, fileName: req.file.fileName, size: req.file.size } : 'uploads/friends/' + req.file.filename;
     }
 
     const newFriend = {

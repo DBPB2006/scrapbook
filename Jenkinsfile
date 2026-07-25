@@ -73,12 +73,6 @@ pipeline {
                       --docker-username=AWS \
                       --docker-password="\$(aws ecr get-login-password --region ${AWS_REGION})"
 
-                    echo "Checking if storage-pvc needs migration..."
-                    if kubectl get pvc storage-pvc -o jsonpath='{.spec.storageClassName}' | grep -q local-path; then
-                        echo "Deleting old local-path storage-pvc to allow migration to ebs-hostpath..."
-                        kubectl delete pvc storage-pvc --ignore-not-found
-                    fi
-
                     echo "Applying Kubernetes manifests..."
 
                     kubectl apply -R -f deployment

@@ -5,7 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-const { S3Storage, getMediaUrl } = require('../shared/s3_storage');
+const { S3Storage, getMediaUrl } = require('./shared/s3_storage');
 
 const common = require('./memories_common_functions');
 

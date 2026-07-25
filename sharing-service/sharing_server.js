@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 
-const { S3Storage, getMediaUrl } = require('../shared/s3_storage');
+const { S3Storage, getMediaUrl } = require('./shared/s3_storage');
 
 const common = require('./sharing_common_functions');
 

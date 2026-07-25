@@ -17,7 +17,7 @@ const path = require('path');
 const axios = require('axios');
 const fs = require('fs');
 
-const { S3Storage, getMediaUrl } = require('../shared/s3_storage');
+const { S3Storage, getMediaUrl } = require('./shared/s3_storage');
 
 const app = express();
 const PORT = process.env.PORT || 3001;

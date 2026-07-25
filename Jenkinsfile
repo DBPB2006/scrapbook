@@ -54,49 +54,51 @@ pipeline {
         }
 
         stage('Deploy') {
-    steps {
-        sshagent(credentials: ['ubuntu']) {
-            sh '''
-                ssh -o StrictHostKeyChecking=no ubuntu@35.154.138.70 '
-                    set -e
+            steps {
+                sshagent(credentials: ['ubuntu']) {
+                    sh '''
+                    ssh -o StrictHostKeyChecking=no ubuntu@35.154.138.70 '
+                        set -e
 
-                    cd ~/scrapbook
-                    git pull
+                        cd ~/scrapbook
+                        git pull
 
-                    echo "Refreshing ECR Secret..."
+                        echo "Refreshing ECR Secret..."
 
-                    kubectl delete secret ecr-secret --ignore-not-found
+                        kubectl delete secret ecr-secret --ignore-not-found
 
-                    kubectl create secret docker-registry ecr-secret \
-                      --docker-server=929140636859.dkr.ecr.ap-south-1.amazonaws.com \
-                      --docker-username=AWS \
-                      --docker-password="$(aws ecr get-login-password --region ap-south-1)"
+                        kubectl create secret docker-registry ecr-secret \
+                          --docker-server=929140636859.dkr.ecr.ap-south-1.amazonaws.com \
+                          --docker-username=AWS \
+                          --docker-password="$(aws ecr get-login-password --region ap-south-1)"
 
-                    echo "Applying Kubernetes manifests..."
+                        echo "Applying Kubernetes manifests..."
 
-                    kubectl apply -R -f deployment
+                        kubectl apply -R -f deployment
 
-                    echo "Restarting deployments..."
+                        echo "Restarting deployments..."
 
-                    kubectl rollout restart deployment/auth-deployment
-                    kubectl rollout restart deployment/ds-deployment
-                    kubectl rollout restart deployment/gateway-deployment
-                    kubectl rollout restart deployment/memories-deployment
-                    kubectl rollout restart deployment/sharing-deployment
-                    kubectl rollout restart deployment/social-deployment
+                        kubectl rollout restart deployment/auth-deployment
+                        kubectl rollout restart deployment/ds-deployment
+                        kubectl rollout restart deployment/gateway-deployment
+                        kubectl rollout restart deployment/memories-deployment
+                        kubectl rollout restart deployment/sharing-deployment
+                        kubectl rollout restart deployment/social-deployment
 
-                    echo "Waiting for rollouts..."
+                        echo "Waiting for rollouts..."
 
-                    kubectl rollout status deployment/auth-deployment
-                    kubectl rollout status deployment/ds-deployment
-                    kubectl rollout status deployment/gateway-deployment
-                    kubectl rollout status deployment/memories-deployment
-                    kubectl rollout status deployment/sharing-deployment
-                    kubectl rollout status deployment/social-deployment
+                        kubectl rollout status deployment/auth-deployment
+                        kubectl rollout status deployment/ds-deployment
+                        kubectl rollout status deployment/gateway-deployment
+                        kubectl rollout status deployment/memories-deployment
+                        kubectl rollout status deployment/sharing-deployment
+                        kubectl rollout status deployment/social-deployment
 
-                    echo "Deployment completed successfully."
-                '
-            '''
+                        echo "Deployment completed successfully."
+                    '
+                    '''
+                }
+            }
         }
     }
 }

@@ -4,4 +4,5 @@ metadata:
   name: ds-config
 data:
   PORT: "3005"
+  STORAGE_PATH: "/data/storage"
   NODE_ENV: "production"

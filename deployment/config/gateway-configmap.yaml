@@ -9,4 +9,5 @@ data:
   MEMORIES_SERVICE_URL: "http://memories-service:3002"
   SOCIAL_SERVICE_URL: "http://social-service:3003"
   SHARING_SERVICE_URL: "http://sharing-service:3004"
+  STORAGE_PATH: "/data/storage"
   NODE_ENV: "production"

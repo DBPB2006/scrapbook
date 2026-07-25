@@ -19,7 +19,7 @@ app.use(session({
 
 // Serve static pages and uploads (these will be volume mounted in docker)
 app.use(express.static('pages'));
-app.use('/uploads', express.static(process.env.UPLOAD_DIR || path.join(__dirname, 'uploads/')));
+app.use('/uploads', express.static(process.env.UPLOAD_DIR || (process.env.STORAGE_PATH ? path.join(process.env.STORAGE_PATH, 'Uploads') : path.join(__dirname, 'uploads/'))));
 
 // Middleware to inject session data into headers for downstream services
 const injectSessionHeader = (req, res, next) => {

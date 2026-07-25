@@ -4,6 +4,10 @@ const bcrypt = require('bcryptjs');
 
 // Shared utility functions
 
+function getStoragePath(domain) {
+    const base = process.env.STORAGE_PATH || path.join(__dirname, 'data');
+    return path.join(base, domain);
+}
 function verifyPassword(inputPassword, hashedPassword) {
     return bcrypt.compareSync(inputPassword, hashedPassword);
 }
@@ -14,7 +18,7 @@ function getBucket(email) {
     return /^[A-Z]$/.test(first) ? first : 'A';
 }
 
-function loadUsers(file = path.join(__dirname, 'data', 'users.json')) {
+function loadUsers(file = path.join(getStoragePath('Users'), 'users.json')) {
     if (!fs.existsSync(file)) return {};
     try {
         return JSON.parse(fs.readFileSync(file, 'utf8')) || {};
@@ -23,7 +27,7 @@ function loadUsers(file = path.join(__dirname, 'data', 'users.json')) {
     }
 }
 
-function saveUsers(users, file = path.join(__dirname, 'data', 'users.json')) {
+function saveUsers(users, file = path.join(getStoragePath('Users'), 'users.json')) {
     const dir = path.dirname(file);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(file, JSON.stringify(users, null, 4));
@@ -40,7 +44,7 @@ function saveCurrentUser(users, user) {
     users[bucket][user.email] = user;
 }
 
-function loadMemories(file = path.join(__dirname, 'data', 'memories.json')) {
+function loadMemories(file = path.join(getStoragePath('Memories'), 'memories.json')) {
     if (!fs.existsSync(file)) return [];
     try {
         return JSON.parse(fs.readFileSync(file, 'utf8')) || [];
@@ -49,13 +53,13 @@ function loadMemories(file = path.join(__dirname, 'data', 'memories.json')) {
     }
 }
 
-function saveMemories(memories, file = path.join(__dirname, 'data', 'memories.json')) {
+function saveMemories(memories, file = path.join(getStoragePath('Memories'), 'memories.json')) {
     const dir = path.dirname(file);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(file, JSON.stringify(memories, null, 4));
 }
 
-function loadSharedMemories(file = path.join(__dirname, 'data', 'shared_memories.json')) {
+function loadSharedMemories(file = path.join(getStoragePath('Friends'), 'shared_memories.json')) {
     if (!fs.existsSync(file)) return [];
     try {
         return JSON.parse(fs.readFileSync(file, 'utf8')) || [];
@@ -64,13 +68,13 @@ function loadSharedMemories(file = path.join(__dirname, 'data', 'shared_memories
     }
 }
 
-function saveSharedMemories(shared, file = path.join(__dirname, 'data', 'shared_memories.json')) {
+function saveSharedMemories(shared, file = path.join(getStoragePath('Friends'), 'shared_memories.json')) {
     const dir = path.dirname(file);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(file, JSON.stringify(shared, null, 4));
 }
 
-function loadTimeCapsules(file = path.join(__dirname, 'data', 'time_capsules.json')) {
+function loadTimeCapsules(file = path.join(getStoragePath('Capsules'), 'time_capsules.json')) {
     if (!fs.existsSync(file)) return [];
     try {
         return JSON.parse(fs.readFileSync(file, 'utf8')) || [];
@@ -79,7 +83,7 @@ function loadTimeCapsules(file = path.join(__dirname, 'data', 'time_capsules.jso
     }
 }
 
-function saveTimeCapsules(capsules, file = path.join(__dirname, 'data', 'time_capsules.json')) {
+function saveTimeCapsules(capsules, file = path.join(getStoragePath('Capsules'), 'time_capsules.json')) {
     const dir = path.dirname(file);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(file, JSON.stringify(capsules, null, 4));

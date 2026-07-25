@@ -25,14 +25,9 @@ spec:
         - secretRef:
             name: scrapbook-secrets
         volumeMounts:
-        - name: memories-data
-          mountPath: /usr/src/app/data
-        - name: uploads-data
-          mountPath: /usr/src/app/uploads
+        - name: storage
+          mountPath: /data/storage
       volumes:
-      - name: memories-data
+      - name: storage
         persistentVolumeClaim:
-          claimName: memories-pvc
-      - name: uploads-data
-        persistentVolumeClaim:
-          claimName: uploads-pvc
+          claimName: storage-pvc

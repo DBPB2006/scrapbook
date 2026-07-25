@@ -24,3 +24,10 @@ spec:
             name: ds-config
         - secretRef:
             name: scrapbook-secrets
+        volumeMounts:
+        - name: storage
+          mountPath: /data/storage
+      volumes:
+      - name: storage
+        persistentVolumeClaim:
+          claimName: storage-pvc

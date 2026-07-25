@@ -14,9 +14,10 @@ services:
       - MEMORIES_SERVICE_URL=http://memories-service:3002
       - SOCIAL_SERVICE_URL=http://social-service:3003
       - SHARING_SERVICE_URL=http://sharing-service:3004
+      - STORAGE_PATH=/data/storage
     volumes:
       - ./client:/usr/src/app/pages
-      - ./uploads:/usr/src/app/uploads
+      - ./storage:/data/storage
     depends_on:
       - auth-service
       - memories-service
@@ -38,9 +39,10 @@ services:
       - SHARING_SERVICE_URL=http://sharing-service:3004
       - AWS_S3_BUCKET=memorybook-media
       - AWS_REGION=ap-south-1
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - STORAGE_PATH=/data/storage
     volumes:
-      - ./auth-service/data:/usr/src/app/data
-      - ./uploads:/usr/src/app/uploads
+      - ./storage:/data/storage
 
   memories-service:
     build:
@@ -53,9 +55,10 @@ services:
       - UPLOAD_DIR=/usr/src/app/uploads/
       - AWS_S3_BUCKET=memorybook-media
       - AWS_REGION=ap-south-1
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - STORAGE_PATH=/data/storage
     volumes:
-      - ./memories-service/data:/usr/src/app/data
-      - ./uploads:/usr/src/app/uploads
+      - ./storage:/data/storage
 
   social-service:
     build:
@@ -71,9 +74,10 @@ services:
       - DS_SERVICE_URL=http://ds-service:3005
       - AWS_S3_BUCKET=memorybook-media
       - AWS_REGION=ap-south-1
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - STORAGE_PATH=/data/storage
     volumes:
-      - ./social-service/data:/usr/src/app/data
-      - ./uploads:/usr/src/app/uploads
+      - ./storage:/data/storage
 
   sharing-service:
     build:
@@ -89,9 +93,10 @@ services:
       - MEMORIES_SERVICE_URL=http://memories-service:3002
       - AWS_S3_BUCKET=memorybook-media
       - AWS_REGION=ap-south-1
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - STORAGE_PATH=/data/storage
     volumes:
-      - ./sharing-service/data:/usr/src/app/data
-      - ./uploads:/usr/src/app/uploads
+      - ./storage:/data/storage
 
   ds-service:
     build: ./ds-service
@@ -99,3 +104,6 @@ services:
     restart: always
     environment:
       - PORT=3005
+      - STORAGE_PATH=/data/storage
+    volumes:
+      - ./storage:/data/storage

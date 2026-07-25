@@ -4,7 +4,9 @@ metadata:
   name: memories-config
 data:
   PORT: "3002"
+  AUTH_SERVICE_URL: "http://auth-service:3001"
   UPLOAD_DIR: "/usr/src/app/uploads/"
   AWS_S3_BUCKET: "memorybook-media"
+  STORAGE_PATH: "/data/storage"
   NODE_ENV: "production"
   AWS_REGION: "ap-south-1"

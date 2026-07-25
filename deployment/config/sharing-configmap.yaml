@@ -11,3 +11,4 @@ data:
   AWS_S3_BUCKET: "memorybook-media"
   NODE_ENV: "production"
   AWS_REGION: "ap-south-1"
+  STORAGE_PATH: "/data/storage"

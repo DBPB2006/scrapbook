@@ -10,4 +10,5 @@ data:
   SHARING_SERVICE_URL: "http://sharing-service:3004"
   NODE_ENV: "production"
   AWS_S3_BUCKET: "memorybook-media"
+  STORAGE_PATH: "/data/storage"
   AWS_REGION: "ap-south-1"

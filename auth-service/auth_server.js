@@ -22,7 +22,7 @@ const { S3Storage, getMediaUrl } = require('./shared/s3_storage');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads/');
+const uploadDir = process.env.UPLOAD_DIR || (process.env.STORAGE_PATH ? path.join(process.env.STORAGE_PATH, 'Uploads') : path.join(__dirname, 'uploads/'));
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }

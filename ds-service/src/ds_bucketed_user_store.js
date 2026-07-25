@@ -1,7 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 
-const usersJsonPath = path.join(__dirname, '..', 'data', 'users.json');
+function getStoragePath(domain) {
+    const base = process.env.STORAGE_PATH || path.join(__dirname, '..', 'data');
+    return path.join(base, domain);
+}
+
+const usersJsonPath = path.join(getStoragePath('Users'), 'users.json');
 
 function load_users() {
     if (!fs.existsSync(usersJsonPath)) {

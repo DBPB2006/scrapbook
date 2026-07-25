@@ -2,7 +2,7 @@ const { Upload } = require("@aws-sdk/lib-storage");
 const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
-const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
+const s3Client = new S3Client({ region: process.env.AWS_REGION || 'ap-south-1' });
 
 function S3Storage(opts) {
     this.bucket = opts.bucket;
@@ -42,7 +42,7 @@ async function getMediaUrl(mediaObj) {
     if (mediaObj && typeof mediaObj === 'object' && mediaObj.provider === 's3') {
         try {
             return await getSignedUrl(s3Client, new GetObjectCommand({ Bucket: process.env.AWS_S3_BUCKET || 'default-bucket', Key: mediaObj.key }), { expiresIn: 3600 });
-        } catch(e) { return ''; }
+        } catch (e) { return ''; }
     }
     return mediaObj || '';
 }

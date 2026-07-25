@@ -271,6 +271,11 @@ app.get('/api/friendship_graph', isAuthenticated, async (req, res) => {
     });
 });
 
+app.use((err, req, res, next) => {
+    console.error('Unhandled Error:', err);
+    res.status(500).json({ error: err.message || 'Internal Server Error', stack: err.stack, name: err.name });
+});
+
 app.get('/health', (req, res) => {
     res.json({ status: 'UP', service: 'social-service' });
 });

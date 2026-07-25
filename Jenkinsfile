@@ -38,17 +38,17 @@ pipeline {
         stage('Build & Push') {
             steps {
                 sh """
-                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-auth:latest -f auth-service/Dockerfile ./auth-service --push
+                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-auth:latest -f auth-service/Dockerfile . --push
 
                 docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-ds:latest -f ds-service/Dockerfile ./ds-service --push
 
                 docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-gateway:latest -f gateway-service/Dockerfile . --push
 
-                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-memories:latest -f memories-service/Dockerfile ./memories-service --push
+                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-memories:latest -f memories-service/Dockerfile . --push
 
-                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-sharing:latest -f sharing-service/Dockerfile ./sharing-service --push
+                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-sharing:latest -f sharing-service/Dockerfile . --push
 
-                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-social:latest -f social-service/Dockerfile ./social-service --push
+                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-social:latest -f social-service/Dockerfile . --push
                 """
             }
         }

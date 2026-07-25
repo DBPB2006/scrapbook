@@ -66,6 +66,7 @@ pipeline {
                     echo "Refreshing ECR Secret..."
 
                     kubectl delete secret ecr-secret --ignore-not-found
+                    kubectl delete secret scrapbook-secrets --ignore-not-found
 
                     kubectl create secret docker-registry ecr-secret \
                       --docker-server=${ECR} \

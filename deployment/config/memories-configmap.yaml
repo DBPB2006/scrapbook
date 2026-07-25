@@ -7,3 +7,4 @@ data:
   UPLOAD_DIR: "/usr/src/app/uploads/"
   AWS_S3_BUCKET: "memorybook-media"
   NODE_ENV: "production"
+  AWS_REGION: "ap-south-1"

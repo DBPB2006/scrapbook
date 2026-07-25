@@ -37,6 +37,7 @@ services:
       - MEMORIES_SERVICE_URL=http://memories-service:3002
       - SHARING_SERVICE_URL=http://sharing-service:3004
       - AWS_S3_BUCKET=memorybook-media
+      - AWS_REGION=ap-south-1
     volumes:
       - ./auth-service/data:/usr/src/app/data
       - ./uploads:/usr/src/app/uploads
@@ -51,6 +52,7 @@ services:
       - PORT=3002
       - UPLOAD_DIR=/usr/src/app/uploads/
       - AWS_S3_BUCKET=memorybook-media
+      - AWS_REGION=ap-south-1
     volumes:
       - ./memories-service/data:/usr/src/app/data
       - ./uploads:/usr/src/app/uploads
@@ -68,6 +70,7 @@ services:
       - MEMORIES_SERVICE_URL=http://memories-service:3002
       - DS_SERVICE_URL=http://ds-service:3005
       - AWS_S3_BUCKET=memorybook-media
+      - AWS_REGION=ap-south-1
     volumes:
       - ./social-service/data:/usr/src/app/data
       - ./uploads:/usr/src/app/uploads
@@ -85,6 +88,7 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:3001
       - MEMORIES_SERVICE_URL=http://memories-service:3002
       - AWS_S3_BUCKET=memorybook-media
+      - AWS_REGION=ap-south-1
     volumes:
       - ./sharing-service/data:/usr/src/app/data
       - ./uploads:/usr/src/app/uploads

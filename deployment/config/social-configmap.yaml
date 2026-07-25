@@ -10,3 +10,4 @@ data:
   AWS_S3_BUCKET: "memorybook-media"
   DS_SERVICE_URL: "http://ds-service:3005"
   NODE_ENV: "production"
+  AWS_REGION: "ap-south-1"

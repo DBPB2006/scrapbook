@@ -2,14 +2,12 @@ pipeline {
     agent any
 
     environment {
-        AWS_ACCOUNT_ID = '929140636859'
-        AWS_REGION = 'ap-south-1'
-        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        AWS_REGION = "ap-south-1"
+        AWS_ACCOUNT = "929140636859"
+        ECR = "${AWS_ACCOUNT}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-        EC2_USER = 'ubuntu'
-        PLATFORM = 'linux/amd64'
-        REPO_DIR = '~/scrapbook'
         EC2_HOST = "35.154.138.70"
+        EC2_USER = "ubuntu"
     }
 
     stages {
@@ -20,14 +18,8 @@ pipeline {
             }
         }
 
-        stage('Build & Push Images') {
+        stage('Login to ECR') {
             steps {
-
-                sh '''
-                docker buildx inspect builder >/dev/null 2>&1 || docker buildx create --name builder --use
-                docker buildx use builder
-                '''
-
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'aws-credentials',
@@ -35,88 +27,73 @@ pipeline {
                         passwordVariable: 'AWS_SECRET_ACCESS_KEY'
                     )
                 ]) {
-
                     sh """
-                   /opt/homebrew/bin/aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                    /opt/homebrew/bin/aws ecr get-login-password --region ${AWS_REGION} | \
+                    docker login --username AWS --password-stdin ${ECR}
                     """
-
-                    script {
-
-                        def services = [
-                            'auth-service'     : 'scrapbook-auth',
-                            'ds-service'       : 'scrapbook-ds',
-                            'gateway-service'  : 'scrapbook-gateway',
-                            'memories-service' : 'scrapbook-memories',
-                            'sharing-service'  : 'scrapbook-sharing',
-                            'social-service'   : 'scrapbook-social'
-                        ]
-
-                        services.each { service, image ->
-
-                            def context = service == 'gateway-service' ? "." : "./${service}"
-
-                            sh """
-                            docker buildx build \
-                              --platform ${PLATFORM} \
-                              -f ${service}/Dockerfile \
-                              -t ${ECR_REGISTRY}/${image}:latest \
-                              ${context} \
-                              --push
-                            """
-                        }
-                    }
                 }
             }
         }
 
-        stage('Deploy to EC2') {
+        stage('Build & Push') {
             steps {
+                sh """
+                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-auth:latest -f auth-service/Dockerfile ./auth-service --push
 
-                sshagent(credentials: ['ec2-ssh-credentials']) {
+                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-ds:latest -f ds-service/Dockerfile ./ds-service --push
 
+                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-gateway:latest -f gateway-service/Dockerfile . --push
+
+                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-memories:latest -f memories-service/Dockerfile ./memories-service --push
+
+                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-sharing:latest -f sharing-service/Dockerfile ./sharing-service --push
+
+                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-social:latest -f social-service/Dockerfile ./social-service --push
+                """
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                sshagent(['ec2-ssh-credentials']) {
                     sh """
-                    ssh -o StrictHostKeyChecking=no ${EC2_USER}@\$EC2_HOST << 'EOF'
-
+                    ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
                     set -e
 
-                    cd ${REPO_DIR}
+                    cd ~/scrapbook
+                    git pull
 
-                    git pull origin main
+                    echo "Refreshing ECR Secret..."
 
-                    kubectl apply -R -f deployment/
+                    kubectl delete secret ecr-secret --ignore-not-found
 
-                    kubectl rollout restart deployment/auth-deployment
-                    kubectl rollout restart deployment/ds-deployment
-                    kubectl rollout restart deployment/gateway-deployment
-                    kubectl rollout restart deployment/memories-deployment
-                    kubectl rollout restart deployment/sharing-deployment
-                    kubectl rollout restart deployment/social-deployment
+                    kubectl create secret docker-registry ecr-secret \
+                      --docker-server=${ECR} \
+                      --docker-username=AWS \
+                      --docker-password="\$(aws ecr get-login-password --region ${AWS_REGION})"
 
-                    kubectl rollout status deployment/auth-deployment --timeout=300s
-                    kubectl rollout status deployment/ds-deployment --timeout=300s
-                    kubectl rollout status deployment/gateway-deployment --timeout=300s
-                    kubectl rollout status deployment/memories-deployment --timeout=300s
-                    kubectl rollout status deployment/sharing-deployment --timeout=300s
-                    kubectl rollout status deployment/social-deployment --timeout=300s
+                    echo "Applying Kubernetes manifests..."
 
-                    EOF
+                    kubectl apply -R -f deployment
+
+                    echo "Restarting deployments..."
+
+                    kubectl rollout restart deployment --all
+
+                    echo "Waiting for rollouts..."
+
+                    kubectl rollout status deployment/auth-deployment
+                    kubectl rollout status deployment/ds-deployment
+                    kubectl rollout status deployment/gateway-deployment
+                    kubectl rollout status deployment/memories-deployment
+                    kubectl rollout status deployment/sharing-deployment
+                    kubectl rollout status deployment/social-deployment
+
+                    echo "Deployment completed successfully."
+                    '
                     """
                 }
             }
-        }
-    }
-
-    post {
-        always {
-            cleanWs()
-        }
-
-        success {
-            echo "Deployment completed successfully."
-        }
-
-        failure {
-            echo "Deployment failed."
         }
     }
 }

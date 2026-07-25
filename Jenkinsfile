@@ -54,10 +54,10 @@ pipeline {
         }
 
         stage('Deploy') {
-            steps {
-                sshagent(['ec2-ssh-credentials']) {
-                    sh """
-                    ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
+    steps {
+        sshagent(credentials: ['ubuntu']) {
+            sh '''
+                ssh -o StrictHostKeyChecking=no ubuntu@35.154.138.70 '
                     set -e
 
                     cd ~/scrapbook
@@ -68,9 +68,9 @@ pipeline {
                     kubectl delete secret ecr-secret --ignore-not-found
 
                     kubectl create secret docker-registry ecr-secret \
-                      --docker-server=${ECR} \
+                      --docker-server=929140636859.dkr.ecr.ap-south-1.amazonaws.com \
                       --docker-username=AWS \
-                      --docker-password="\$(aws ecr get-login-password --region ${AWS_REGION})"
+                      --docker-password="$(aws ecr get-login-password --region ap-south-1)"
 
                     echo "Applying Kubernetes manifests..."
 
@@ -78,7 +78,12 @@ pipeline {
 
                     echo "Restarting deployments..."
 
-                    kubectl rollout restart deployment --all
+                    kubectl rollout restart deployment/auth-deployment
+                    kubectl rollout restart deployment/ds-deployment
+                    kubectl rollout restart deployment/gateway-deployment
+                    kubectl rollout restart deployment/memories-deployment
+                    kubectl rollout restart deployment/sharing-deployment
+                    kubectl rollout restart deployment/social-deployment
 
                     echo "Waiting for rollouts..."
 
@@ -90,10 +95,8 @@ pipeline {
                     kubectl rollout status deployment/social-deployment
 
                     echo "Deployment completed successfully."
-                    '
-                    """
-                }
-            }
+                '
+            '''
         }
     }
 }

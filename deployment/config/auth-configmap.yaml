@@ -9,3 +9,4 @@ data:
   MEMORIES_SERVICE_URL: "http://memories-service:3002"
   SHARING_SERVICE_URL: "http://sharing-service:3004"
   NODE_ENV: "production"
+  AWS_S3_BUCKET: "memorybook-media"

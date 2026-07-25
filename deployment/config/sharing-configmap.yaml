@@ -8,4 +8,5 @@ data:
   DS_SERVICE_URL: "http://ds-service:3005"
   AUTH_SERVICE_URL: "http://auth-service:3001"
   MEMORIES_SERVICE_URL: "http://memories-service:3002"
+  AWS_S3_BUCKET: "memorybook-media"
   NODE_ENV: "production"

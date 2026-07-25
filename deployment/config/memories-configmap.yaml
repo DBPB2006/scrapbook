@@ -5,4 +5,5 @@ metadata:
 data:
   PORT: "3002"
   UPLOAD_DIR: "/usr/src/app/uploads/"
+  AWS_S3_BUCKET: "memorybook-media"
   NODE_ENV: "production"

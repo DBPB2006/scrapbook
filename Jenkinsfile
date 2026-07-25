@@ -9,6 +9,7 @@ pipeline {
         EC2_USER = 'ubuntu'
         PLATFORM = 'linux/amd64'
         REPO_DIR = '~/scrapbook'
+        EC2_HOST = "35.154.138.70"
     }
 
     stages {

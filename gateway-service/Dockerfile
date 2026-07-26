@@ -7,6 +7,7 @@ COPY gateway-service/package*.json ./
 RUN npm install
 
 COPY gateway-service/gateway_server.js ./
+COPY shared/metrics.js ./shared/
 COPY client/ ./pages/
 
 EXPOSE 3090

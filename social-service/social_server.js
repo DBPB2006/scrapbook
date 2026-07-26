@@ -7,7 +7,7 @@ const fs = require('fs');
 const axios = require('axios');
 
 const { S3Storage, getMediaUrl } = require('./shared/s3_storage');
-
+const metrics = require('./shared/metrics');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -15,6 +15,9 @@ const PORT = process.env.PORT || 3003;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(metrics.metricsMiddleware);
+app.get('/metrics', metrics.metricsEndpoint);
 
 const uploadDir = process.env.UPLOAD_DIR || (process.env.STORAGE_PATH ? path.join(process.env.STORAGE_PATH, 'Uploads', 'friends') : path.join(__dirname, 'uploads/friends/'));
 if (!fs.existsSync(uploadDir)) {

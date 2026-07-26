@@ -18,6 +18,7 @@ const axios = require('axios');
 const fs = require('fs');
 
 const { S3Storage, getMediaUrl } = require('./shared/s3_storage');
+const metrics = require('./shared/metrics');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,6 +31,9 @@ if (!fs.existsSync(uploadDir)) {
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(metrics.metricsMiddleware);
+app.get('/metrics', metrics.metricsEndpoint);
 
 // Storage config for multer
 const storage = new S3Storage({ bucket: process.env.AWS_S3_BUCKET || 'default-bucket', prefix: 'users/' });

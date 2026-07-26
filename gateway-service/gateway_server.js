@@ -4,11 +4,15 @@ const path = require('path');
 const session = require('express-session');
 const cors = require('cors');
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const metrics = require('./shared/metrics');
 
 const app = express();
 const PORT = process.env.PORT || 3090;
 
 app.use(cors());
+
+app.use(metrics.metricsMiddleware);
+app.get('/metrics', metrics.metricsEndpoint);
 
 app.use(session({
     secret: 'scrapbook_secret_key',

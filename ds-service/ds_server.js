@@ -5,12 +5,16 @@ const { PriorityQueue } = require('./src/ds_priority_queue');
 const { isCapsuleUnlocked } = require('./src/ds_stack');
 const networkMatrix = require('./src/ds_network_matrix');
 const bucketStore = require('./src/ds_bucketed_user_store');
+const metrics = require('./shared/metrics');
 
 const app = express();
 const PORT = process.env.PORT || 3005;
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+app.use(metrics.metricsMiddleware);
+app.get('/metrics', metrics.metricsEndpoint);
 
 app.post('/api/ds/pq/sort', (req, res) => {
     try {

@@ -48,7 +48,7 @@ const isAuthenticated = (req, res, next) => {
 // Signup Route
 app.post('/api/signup', upload.single('profilePic'), async (req, res) => {
     const { firstName, lastName, username, email, password, confirmPassword } = req.body;
-    
+
     if (!firstName || !lastName || !username || !email || !password) {
         return res.status(400).json({ error: 'All fields are required.' });
     }
@@ -63,12 +63,12 @@ app.post('/api/signup', upload.single('profilePic'), async (req, res) => {
     }
 
     const lowerEmail = email.toLowerCase();
-    
+
     // Check if email exists
     if (await userStore.get_user(lowerEmail)) {
         return res.status(400).json({ error: 'Email is already registered.' });
     }
-    
+
     // Check if username exists (requires iterating through all users)
     if (await userStore.username_exists(username)) {
         return res.status(400).json({ error: 'This username is already taken.' });
@@ -231,7 +231,7 @@ app.post('/api/users/profile/password', isAuthenticated, async (req, res) => {
     const { old_password, new_password, confirm_password } = req.body;
 
     const passwordMatch = user.password === old_password || bcrypt.compareSync(old_password, user.password);
-    
+
     if (!passwordMatch) {
         return res.status(400).json({ error: 'Old password is incorrect' });
     }
@@ -270,15 +270,15 @@ app.post('/api/users/profile/delete_account', isAuthenticated, async (req, res) 
 app.get('/api/dashboard_data', isAuthenticated, async (req, res) => {
     const currentEmail = req.userEmail;
     const user = await userStore.get_user(currentEmail);
-    
+
     let allMemories = [];
     try {
         const memRes = await axios.get(`${process.env.MEMORIES_SERVICE_URL || 'http://memories-service:3002'}/api/internal/memories`);
         allMemories = memRes.data;
-    } catch(err) { console.error('Failed to fetch memories'); }
-    
+    } catch (err) { console.error('Failed to fetch memories'); }
+
     const userMemories = allMemories.filter(m => m.owner === currentEmail);
-    
+
     const friendsCount = user.friends ? user.friends.length : 0;
     const memoryCount = userMemories.length;
 
@@ -287,7 +287,7 @@ app.get('/api/dashboard_data', isAuthenticated, async (req, res) => {
 
     const now = Date.now();
     const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
-    
+
     const newMemories = allMemories.filter(m => {
         const t = new Date(m.created_at || m.date).getTime();
         return t && t >= weekAgo;
@@ -304,12 +304,12 @@ app.get('/api/dashboard_data', isAuthenticated, async (req, res) => {
     try {
         const shareRes = await axios.get(`${process.env.SHARING_SERVICE_URL || 'http://sharing-service:3004'}/api/internal/shared_memories`);
         allShared = shareRes.data;
-    } catch(err) { console.error('Failed to fetch shared memories'); }
-    
+    } catch (err) { console.error('Failed to fetch shared memories'); }
+
     const sentSharedMemories = allShared.filter(m => m.from === currentEmail).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
     const receivedSharedMemories = allShared.filter(m => m.to === currentEmail);
     const unseenReceived = receivedSharedMemories.filter(m => !m.seen).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-    
+
     const hasUnseenSharedMemory = unseenReceived.length > 0;
     const newestUnseenMemoryId = hasUnseenSharedMemory ? (unseenReceived[0].memory_id || unseenReceived[0].original_memory_id) : null;
 

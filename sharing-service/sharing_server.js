@@ -51,7 +51,7 @@ app.get('/api/capsules', isAuthenticated, async (req, res) => {
                         c.unlocked = 1;
                         updated = true;
                     }
-                } catch(err) { console.error('DS check failed', err.message); }
+                } catch (err) { console.error('DS check failed', err.message); }
             }
             userCapsules.push(c);
         }
@@ -65,8 +65,8 @@ app.get('/api/capsules', isAuthenticated, async (req, res) => {
     try {
         const pqRes = await axios.post(`${process.env.DS_SERVICE_URL || 'http://ds-service:3005'}/api/ds/pq/sort`, { capsules: userCapsules });
         sortedCapsules = pqRes.data;
-    } catch(err) { console.error('DS sort failed', err.message); }
-    
+    } catch (err) { console.error('DS sort failed', err.message); }
+
     sortedCapsules = await Promise.all(sortedCapsules.map(async c => {
         const cCopy = { ...c };
         if (cCopy.media && Array.isArray(cCopy.media)) {
@@ -86,7 +86,7 @@ app.get('/api/capsules', isAuthenticated, async (req, res) => {
 app.post('/api/capsules', isAuthenticated, upload.array('media[]'), (req, res) => {
     const { recipient_email, message, description, reveal_date } = req.body;
     const currentEmail = req.userEmail;
-    
+
     if (!recipient_email || !message || !reveal_date) {
         return res.status(400).json({ error: 'Recipient, message, and reveal date are required.' });
     }
@@ -149,7 +149,7 @@ app.get('/api/capsules/:id', isAuthenticated, async (req, res) => {
                         capsule.unlocked = 1;
                         updated = true;
                     }
-                } catch(err) { console.error('DS check failed'); }
+                } catch (err) { console.error('DS check failed'); }
             }
             break;
         }
@@ -209,16 +209,16 @@ app.get('/api/internal/shared_memories', async (req, res) => {
 app.post('/api/shared_memories', isAuthenticated, upload.array('attachments[]'), async (req, res) => {
     const currentEmail = req.userEmail;
     const { to_email, memory_title, message, date, selected_memory_id } = req.body;
-    
+
     let allUsers = [];
     try {
         const usersRes = await axios.get(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/users`, { headers: { 'x-user-email': currentEmail } });
         allUsers = usersRes.data;
-    } catch(err) { console.error(err); }
-    
+    } catch (err) { console.error(err); }
+
     const currentUser = allUsers.find(u => u.email === currentEmail) || { email: currentEmail, name: currentEmail };
     const toUser = allUsers.find(u => u.email === to_email);
-    
+
     if (!to_email || !memory_title || !message || !date) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -244,7 +244,7 @@ app.post('/api/shared_memories', isAuthenticated, upload.array('attachments[]'),
             const memRes = await axios.get(`${process.env.MEMORIES_SERVICE_URL || 'http://memories-service:3002'}/api/internal/memories`);
             const allMemories = memRes.data;
             originalMemory = allMemories.find(m => m.memory_id === selected_memory_id && m.owner === currentEmail);
-        } catch(err) { console.error('Failed to fetch memories'); }
+        } catch (err) { console.error('Failed to fetch memories'); }
     }
 
     const newShared = {
@@ -276,9 +276,9 @@ app.get('/api/shared_memories/:id', isAuthenticated, async (req, res) => {
     const currentEmail = req.userEmail;
     const memoryId = req.params.id;
     let allShared = common.loadSharedMemories();
-    
+
     let receivedMemories = allShared.filter(m => m.to === currentEmail);
-    
+
     let sharedMemory = null;
     let updated = false;
 
@@ -306,7 +306,7 @@ app.get('/api/shared_memories/:id', isAuthenticated, async (req, res) => {
     if (sharedMemory.attachments && Array.isArray(sharedMemory.attachments)) {
         sharedMemory.attachments = await Promise.all(sharedMemory.attachments.map(async att => await getMediaUrl(att)));
     }
-    
+
     receivedMemories = await Promise.all(receivedMemories.map(async rm => {
         const rmCopy = { ...rm };
         if (rmCopy.attachments && Array.isArray(rmCopy.attachments)) {

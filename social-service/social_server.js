@@ -36,7 +36,7 @@ const isAuthenticated = (req, res, next) => {
 
 app.get('/api/friends', isAuthenticated, async (req, res) => {
     const currentEmail = req.userEmail;
-    
+
     let allUsers = [];
     let usersData = {};
     try {
@@ -47,20 +47,20 @@ app.get('/api/friends', isAuthenticated, async (req, res) => {
                 allUsers.push(usersData[bucket][email]);
             }
         }
-    } catch(err) { console.error('Failed to fetch users'); }
-    
+    } catch (err) { console.error('Failed to fetch users'); }
+
     const user = allUsers.find(u => u.email === currentEmail) || {};
-    
+
     let allMemories = [];
     try {
         const memRes = await axios.get(`${process.env.MEMORIES_SERVICE_URL || 'http://memories-service:3002'}/api/internal/memories`);
         allMemories = memRes.data;
-    } catch(err) { console.error('Failed to fetch memories'); }
-    
+    } catch (err) { console.error('Failed to fetch memories'); }
+
     const userMemories = allMemories.filter(m => m.owner === currentEmail);
-    
+
     const friends = user.friends || [];
-    
+
     const friendsWithCounts = await Promise.all(friends.map(async f => {
         const friendId = f.friend_id || f.id || f.email;
         const memCount = userMemories.filter(m => m.friends && m.friends.includes(friendId)).length;
@@ -86,10 +86,10 @@ app.post('/api/friends', isAuthenticated, upload.single('profileImage'), async (
                 allUsers.push(usersData[bucket][email]);
             }
         }
-    } catch(err) { console.error('Failed to fetch users'); }
-    
+    } catch (err) { console.error('Failed to fetch users'); }
+
     const user = allUsers.find(u => u.email === currentEmail) || { email: currentEmail };
-    
+
     const { friendName, friendEmail, relationshipTag, howYouMet } = req.body;
 
     if (!friendName || !howYouMet || !friendEmail) {
@@ -119,7 +119,7 @@ app.post('/api/friends', isAuthenticated, upload.single('profileImage'), async (
         user.friends = [];
     }
     user.friends.push(newFriend);
-    
+
     try {
         await axios.post(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/internal/users`, user);
     } catch (err) { console.error('Failed to save user'); }
@@ -130,7 +130,7 @@ app.post('/api/friends', isAuthenticated, upload.single('profileImage'), async (
 app.delete('/api/friends/:id', isAuthenticated, async (req, res) => {
     const currentEmail = req.userEmail;
     const friendId = req.params.id;
-    
+
     let allUsers = [];
     let usersData = {};
     try {
@@ -141,8 +141,8 @@ app.delete('/api/friends/:id', isAuthenticated, async (req, res) => {
                 allUsers.push(usersData[bucket][email]);
             }
         }
-    } catch(err) { console.error('Failed to fetch users'); }
-    
+    } catch (err) { console.error('Failed to fetch users'); }
+
     const user = allUsers.find(u => u.email === currentEmail) || { email: currentEmail };
 
     if (user.friends) {
@@ -151,18 +151,18 @@ app.delete('/api/friends/:id', isAuthenticated, async (req, res) => {
             await axios.post(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/internal/users`, user);
         } catch (err) { console.error('Failed to save user'); }
     }
-    
+
     res.json({ success: true, message: 'Friend removed' });
 });
 
 app.get('/api/friendship_graph', isAuthenticated, async (req, res) => {
     const currentEmail = req.userEmail;
-    
+
     let usersData = {};
     try {
         const usersRes = await axios.get(`${process.env.AUTH_SERVICE_URL || 'http://auth-service:3001'}/api/internal/users/raw`);
         usersData = usersRes.data;
-    } catch(err) { console.error('Failed to fetch users'); }
+    } catch (err) { console.error('Failed to fetch users'); }
 
     const allUsers = {};
     for (const bucket in usersData) {
@@ -175,7 +175,7 @@ app.get('/api/friendship_graph', isAuthenticated, async (req, res) => {
     try {
         const dsRes = await axios.post(`${process.env.DS_SERVICE_URL || 'http://ds-service:3005'}/api/ds/network/matrix`, { usersData, allUsers });
         ({ nodes, emails, emailIndexMap, friendshipMatrix } = dsRes.data);
-    } catch(err) { console.error('Failed to build matrix via DS service'); }
+    } catch (err) { console.error('Failed to build matrix via DS service'); }
 
     const size = Object.keys(nodes).length;
 
@@ -183,10 +183,10 @@ app.get('/api/friendship_graph', isAuthenticated, async (req, res) => {
     try {
         const memRes = await axios.get(`${process.env.MEMORIES_SERVICE_URL || 'http://memories-service:3002'}/api/internal/memories`);
         allMemories = memRes.data;
-    } catch(err) { console.error('Failed to fetch memories'); }
-    
+    } catch (err) { console.error('Failed to fetch memories'); }
+
     const myMemories = allMemories.filter(m => m.owner === currentEmail);
-    
+
     const memoryMatrix = Array.from({ length: size }, () => Array(size).fill(0));
     const memoryEdges = {};
     const memoryLocations = [];
@@ -253,7 +253,7 @@ app.get('/api/friendship_graph', isAuthenticated, async (req, res) => {
             friendshipMatrix, emailIndexMap, emails, currentEmail, friendGraph
         });
         suggestedEmails = suggRes.data.suggestions || [];
-    } catch(err) { console.error('Failed to get suggestions via DS service'); }
+    } catch (err) { console.error('Failed to get suggestions via DS service'); }
 
     const suggestedFriends = suggestedEmails.map(email => nodes[email] ? nodes[email].name : email);
 

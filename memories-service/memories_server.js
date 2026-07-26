@@ -133,12 +133,12 @@ app.get('/api/memories/:id', isAuthenticated, async (req, res) => {
     const allMemories = common.loadMemories();
     const userMemories = allMemories.filter(m => m.owner === currentEmail);
     const memory = userMemories.find(m => m.memory_id === memoryId);
-    
+
     if (memory) {
         const memIndex = userMemories.findIndex(m => m.memory_id === memoryId);
         const prevMemoryId = memIndex > 0 ? userMemories[memIndex - 1].memory_id : null;
         const nextMemoryId = memIndex >= 0 && memIndex < userMemories.length - 1 ? userMemories[memIndex + 1].memory_id : null;
-        
+
         const mappedMemories = userMemories.map(m => ({ id: m.memory_id, title: m.title }));
 
         const memoryCopy = { ...memory };
@@ -166,10 +166,10 @@ app.delete('/api/memories/:id', isAuthenticated, (req, res) => {
     const currentEmail = req.userEmail;
     const memoryId = req.params.id;
     let allMemories = common.loadMemories();
-    
+
     const initialLength = allMemories.length;
     allMemories = allMemories.filter(m => !(m.memory_id === memoryId && m.owner === currentEmail));
-    
+
     if (allMemories.length < initialLength) {
         common.saveMemories(allMemories);
         res.json({ success: true, message: 'Memory deleted' });

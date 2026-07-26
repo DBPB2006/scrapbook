@@ -38,10 +38,10 @@ app.post('/api/ds/network/matrix', (req, res) => {
     try {
         const { usersData, allUsers } = req.body;
         if (!usersData || !allUsers) return res.status(400).json({ error: 'usersData and allUsers are required' });
-        
+
         const [nodes, emails, emailIndexMap] = networkMatrix.buildNodesAndIndexMap(usersData);
         const friendshipMatrix = networkMatrix.buildFriendshipMatrix(nodes, emailIndexMap, allUsers);
-        
+
         res.json({ nodes, emails, emailIndexMap, friendshipMatrix });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -63,7 +63,7 @@ app.post('/api/ds/bucket/get_user', (req, res) => {
     try {
         const { users, email } = req.body;
         if (!users || !email) return res.status(400).json({ error: 'users and email required' });
-        
+
         const bucket = bucketStore.get_bucket(email);
         const user = (users[bucket] && users[bucket][email]) ? users[bucket][email] : null;
         res.json({ user, bucket });
@@ -76,7 +76,7 @@ app.post('/api/ds/bucket/add_user', (req, res) => {
     try {
         const { users, email, details } = req.body;
         if (!users || !email || !details) return res.status(400).json({ error: 'users, email, and details required' });
-        
+
         const bucket = bucketStore.get_bucket(email);
         if (!users[bucket]) users[bucket] = {};
         users[bucket][email] = details;
@@ -90,7 +90,7 @@ app.post('/api/ds/bucket/username_exists', (req, res) => {
     try {
         const { users, username } = req.body;
         if (!users || !username) return res.status(400).json({ error: 'users and username required' });
-        
+
         let exists = false;
         for (const bucket in users) {
             for (const email in users[bucket]) {

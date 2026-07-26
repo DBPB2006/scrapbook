@@ -40,7 +40,7 @@ pipeline {
                 sh """
                 docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-auth:latest -f auth-service/Dockerfile . --push
 
-                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-ds:latest -f ds-service/Dockerfile ./ds-service --push
+                docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-ds:latest -f ds-service/Dockerfile . --push
 
                 docker buildx build --platform linux/amd64 -t ${ECR}/scrapbook-gateway:latest -f gateway-service/Dockerfile . --push
 

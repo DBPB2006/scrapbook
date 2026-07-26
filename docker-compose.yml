@@ -2,7 +2,9 @@
 
 services:
   gateway-service:
-    build: ./gateway-service
+    build:
+      context: .
+      dockerfile: gateway-service/Dockerfile
     container_name: scrapbook_gateway
     restart: always
     ports:
@@ -99,7 +101,9 @@ services:
       - ./storage:/data/storage
 
   ds-service:
-    build: ./ds-service
+    build:
+      context: .
+      dockerfile: ds-service/Dockerfile
     container_name: scrapbook_ds
     restart: always
     environment:

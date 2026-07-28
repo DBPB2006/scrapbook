@@ -6,7 +6,7 @@ pipeline {
         AWS_ACCOUNT = "929140636859"
         ECR = "${AWS_ACCOUNT}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-        EC2_HOST = "35.154.138.70"
+        EC2_HOST = "13.234.75.88"
         EC2_USER = "ubuntu"
     }
 

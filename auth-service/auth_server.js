@@ -93,6 +93,7 @@ app.post('/api/signup', upload.single('profilePic'), async (req, res) => {
     };
 
     await userStore.add_user(newUser.email, newUser);
+    metrics.userRegistrationsTotal.inc();
 
     // Note: Gateway handles session creation, but we just return success
     // The frontend should ideally call login after signup to establish session
@@ -121,6 +122,7 @@ app.post('/api/login', async (req, res) => {
     }
 
     if (passwordMatch) {
+        metrics.successfulLoginsTotal.inc();
         // Return success. The API gateway handles sessions, so it needs to intercept this
         // to set the cookie. Or the frontend calls a gateway endpoint that calls this.
         // For simplicity in this architecture without rewriting the frontend deeply:
@@ -131,6 +133,7 @@ app.post('/api/login', async (req, res) => {
         res.setHeader('x-set-session-username', user.username);
         return res.json({ success: true, message: 'Login successful', redirect: '/home.html' });
     } else {
+        metrics.failedLoginsTotal.inc();
         return res.status(401).json({ error: 'Invalid email or password.' });
     }
 });

@@ -55,7 +55,43 @@ const metricsEndpoint = async (req, res) => {
   }
 };
 
+const userRegistrationsTotal = new promClient.Counter({
+  name: 'user_registrations_total',
+  help: 'Total number of user registrations'
+});
+
+const successfulLoginsTotal = new promClient.Counter({
+  name: 'successful_logins_total',
+  help: 'Total number of successful logins'
+});
+
+const failedLoginsTotal = new promClient.Counter({
+  name: 'failed_logins_total',
+  help: 'Total number of failed logins'
+});
+
+const memoriesCreatedTotal = new promClient.Counter({
+  name: 'memories_created_total',
+  help: 'Total number of memories created'
+});
+
+const memoriesDeletedTotal = new promClient.Counter({
+  name: 'memories_deleted_total',
+  help: 'Total number of memories deleted'
+});
+
+const memoriesSharedTotal = new promClient.Counter({
+  name: 'memories_shared_total',
+  help: 'Total number of memories shared'
+});
+
 module.exports = {
   metricsMiddleware,
-  metricsEndpoint
+  metricsEndpoint,
+  userRegistrationsTotal,
+  successfulLoginsTotal,
+  failedLoginsTotal,
+  memoriesCreatedTotal,
+  memoriesDeletedTotal,
+  memoriesSharedTotal
 };

@@ -127,6 +127,7 @@ app.post('/api/memories', isAuthenticated, upload.array('memory_media[]', 10), (
 
     allMemories.push(newMemory);
     common.saveMemories(allMemories);
+    metrics.memoriesCreatedTotal.inc();
 
     res.json({ success: true, message: 'Memory added successfully' });
 });
@@ -176,6 +177,7 @@ app.delete('/api/memories/:id', isAuthenticated, (req, res) => {
 
     if (allMemories.length < initialLength) {
         common.saveMemories(allMemories);
+        metrics.memoriesDeletedTotal.inc();
         res.json({ success: true, message: 'Memory deleted' });
     } else {
         res.status(404).json({ error: 'Memory not found or unauthorized' });

@@ -272,6 +272,7 @@ app.post('/api/shared_memories', isAuthenticated, upload.array('attachments[]'),
     const allShared = common.loadSharedMemories();
     allShared.push(newShared);
     common.saveSharedMemories(allShared);
+    metrics.memoriesSharedTotal.inc();
 
     res.json({ success: true, message: 'Memory shared successfully' });
 });

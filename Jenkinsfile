@@ -10,6 +10,7 @@ pipeline {
         EC2_USER = "ubuntu"
     }
 
+
     stages {
 
         stage('Checkout') {

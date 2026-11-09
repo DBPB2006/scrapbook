@@ -271,45 +271,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         const countdowns = document.querySelectorAll('.countdown');
         if (countdowns.length === 0) return;
 
-    
+        setInterval(() => {
+            countdowns.forEach(el => {
+                const revealDateStr = el.dataset.reveal;
+                if (!revealDateStr) return;
+                
+                const now = new Date();
+                const reveal = new Date(revealDateStr.replace(' ', 'T') + 'Z');
+                let diffMs = reveal - now;
 
-    const interval = setInterval(() => {
-        let shouldReload = false;
-        countdowns.forEach(el => {
-            const revealDateStr = el.dataset.reveal;
-            
-            const now = new Date();
-            const reveal = new Date(revealDateStr.replace(' ', 'T') + 'Z');
-            let diffMs = reveal - now;
-
-            if (diffMs <= 0) {
-                if (el.textContent !== 'Ready to unlock! Refresh page.') {
-                    el.textContent = 'Ready to unlock! Refresh page.';
+                if (diffMs <= 0) {
+                    if (el.textContent !== 'Ready to unlock! Refresh page.') {
+                        el.textContent = 'Ready to unlock! Refresh page.';
+                    }
+                    return;
                 }
-                return;
-            }
-            if (diffMs <= 0) {
-                el.textContent = 'Ready to unlock! Refresh page.';
-                return;
-            }
 
-            const y = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 365));
-            diffMs -= y * (1000 * 60 * 60 * 24 * 365);
-            const m = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30));
-            diffMs -= m * (1000 * 60 * 60 * 24 * 30);
-            const d = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            diffMs -= d * (1000 * 60 * 60 * 24);
-            const h = Math.floor(diffMs / (1000 * 60 * 60));
-            diffMs -= h * (1000 * 60 * 60);
-            const min = Math.floor(diffMs / (1000 * 60));
-            diffMs -= min * (1000 * 60);
-            const s = Math.floor(diffMs / 1000);
+                const y = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 365));
+                diffMs -= y * (1000 * 60 * 60 * 24 * 365);
+                const m = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30));
+                diffMs -= m * (1000 * 60 * 60 * 24 * 30);
+                const d = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                diffMs -= d * (1000 * 60 * 60 * 24);
+                const h = Math.floor(diffMs / (1000 * 60 * 60));
+                diffMs -= h * (1000 * 60 * 60);
+                const min = Math.floor(diffMs / (1000 * 60));
+                diffMs -= min * (1000 * 60);
+                const s = Math.floor(diffMs / 1000);
 
-            el.textContent = `${y}y ${m}m ${d}d ${h}h ${min}m ${s}s`;
-        });
-
-    }, 1000);
-}
+                el.textContent = `${y}y ${m}m ${d}d ${h}h ${min}m ${s}s`;
+            });
+        }, 1000);
+    }
     
     loadCapsules();
 });

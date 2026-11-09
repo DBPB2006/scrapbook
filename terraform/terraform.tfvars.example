@@ -1,0 +1,16 @@
+# Example non-sensitive variable configuration for Memory Book.
+# Copy to `terraform.tfvars` (`*.tfvars` is gitignored) and customize as needed.
+
+aws_region              = "ap-south-1"
+environment             = "trial"
+project_name            = "memory-book"
+availability_zones      = ["ap-south-1a", "ap-south-1b"]
+vpc_cidr                = "10.0.0.0/16"
+public_subnet_cidrs     = ["10.0.1.0/24", "10.0.2.0/24"]
+private_app_subnet_cidr = "10.0.11.0/24"
+private_db_subnet_cidr  = "10.0.21.0/24"
+
+additional_tags = {
+  Owner = "memory-book-team"
+}
+

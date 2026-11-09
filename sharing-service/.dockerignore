@@ -1,8 +1,0 @@
-node_modules
-npm-debug.log
-.env
-.git
-.vscode
-data/
-uploads/
-.DS_Store

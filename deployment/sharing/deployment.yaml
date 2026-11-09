@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sharing-service
+  namespace: memorybook
+  labels:
+    app: sharing-service
+    app.kubernetes.io/name: sharing-service
+    app.kubernetes.io/part-of: memorybook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sharing-service
+  template:
+    metadata:
+      labels:
+        app: sharing-service
+        app.kubernetes.io/name: sharing-service
+        app.kubernetes.io/part-of: memorybook
+    spec:
+      containers:
+      - name: sharing-service
+        image: scrapbook-sharing:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 3004
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "3004"
+        - name: NODE_ENV
+          value: "production"
+        - name: AWS_REGION
+          value: "ap-south-1"
+        - name: AWS_S3_BUCKET
+          value: "scrapbook-media"
+        - name: MONGODB_DATABASE
+          value: "memorybook"
+        - name: AUTH_SERVICE_URL
+          value: "http://auth-service:3001"
+        - name: MEMORIES_SERVICE_URL
+          value: "http://memories-service:3002"
+        envFrom:
+        - secretRef:
+            name: app-secrets
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 3004
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3004
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+

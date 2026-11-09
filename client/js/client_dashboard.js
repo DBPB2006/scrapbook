@@ -40,10 +40,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         let img = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(title);
                         let firstMediaUrl = '';
                         if (mem.media && mem.media.length > 0) {
-                            firstMediaUrl = typeof mem.media[0] === 'string' ? mem.media[0] : mem.media[0].url;
+                            firstMediaUrl = typeof mem.media[0] === 'string' ? mem.media[0] : (mem.media[0].url || mem.media[0].path || '');
                         }
-                        if (mem.image && mem.image.startsWith('uploads/')) img = '/' + mem.image;
-                        else if (firstMediaUrl && firstMediaUrl.startsWith('uploads/')) img = '/' + firstMediaUrl;
+                        const rawCandidate = mem.image || firstMediaUrl;
+                        if (rawCandidate) {
+                            const resolved = window.MemoryBookConfig ? window.MemoryBookConfig.resolveMediaUrl(rawCandidate) : rawCandidate;
+                            if (resolved) img = resolved;
+                        }
 
                         const rot = rotations[i % rotations.length];
                         
@@ -74,8 +77,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     let fhtml = '';
                     data.recentFriends.forEach(f => {
                         let img = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(f.name);
-                        if (f.profile_image && f.profile_image.startsWith('uploads/')) img = '/' + f.profile_image;
-                        else if (f.image_url && f.image_url.startsWith('uploads/')) img = '/' + f.image_url;
+                        const rawImg = f.profile_image || f.image_url;
+                        if (rawImg) {
+                            const resolved = window.MemoryBookConfig ? window.MemoryBookConfig.resolveMediaUrl(rawImg) : rawImg;
+                            if (resolved) img = resolved;
+                        }
                         
                         const d = f.date_added ? new Date(f.date_added).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
                         

@@ -2,18 +2,32 @@
 
 async function loadNavbar() {
     try {
-        const response = await fetch('/navbar.html');
+        let response;
+        try {
+            response = await fetch('/navbar.html');
+            if (!response.ok) throw new Error('Root path not reachable');
+        } catch (fetchErr) {
+            response = await fetch('../navbar.html');
+        }
         const navbarHtml = await response.text();
-        document.getElementById('navbar-container').innerHTML = navbarHtml;
+        const container = document.getElementById('navbar-container');
+        if (container) {
+            container.innerHTML = navbarHtml;
+        }
 
         // Fetch current user and set navbar info
         const userRes = await axios.get('/api/current_user');
         const user = userRes.data;
 
-        document.getElementById('navUserEmail').textContent = user.email;
+        const emailEl = document.getElementById('navUserEmail');
+        if (emailEl) emailEl.textContent = user.email;
+
         const name = user.name || user.username || user.email;
-        document.getElementById('navUserName').textContent = name;
-        document.getElementById('navUserInitial').textContent = name.charAt(0).toUpperCase();
+        const nameEl = document.getElementById('navUserName');
+        if (nameEl) nameEl.textContent = name;
+
+        const initEl = document.getElementById('navUserInitial');
+        if (initEl) initEl.textContent = name.charAt(0).toUpperCase();
 
         // Highlight current page
         const currentPage = window.location.pathname.split('/').pop() || 'dashboard.html';
@@ -47,6 +61,7 @@ async function loadNavbar() {
         }
     } catch (err) {
         if (err.response && err.response.status === 401) {
+            sessionStorage.removeItem('mb_access_token');
             window.location.href = "/login.html";
         }
     }
@@ -55,8 +70,10 @@ async function loadNavbar() {
 async function logout() {
     try {
         await axios.post('/api/logout');
-        window.location.href = "/login.html";
     } catch (e) {
         console.error('Logout failed', e);
+    } finally {
+        sessionStorage.removeItem('mb_access_token');
+        window.location.href = "/login.html";
     }
 }

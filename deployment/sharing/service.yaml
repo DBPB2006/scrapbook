@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sharing-service
+  namespace: memorybook
+  labels:
+    app: sharing-service
+    app.kubernetes.io/name: sharing-service
+    app.kubernetes.io/part-of: memorybook
+spec:
+  type: ClusterIP
+  selector:
+    app: sharing-service
+  ports:
+  - name: http
+    port: 3004
+    targetPort: 3004
+    protocol: TCP
+

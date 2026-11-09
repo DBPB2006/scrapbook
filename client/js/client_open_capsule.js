@@ -91,9 +91,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                         function renderMedia(index) {
                             if (!mediaItems[index]) return;
                             const item = mediaItems[index];
-                            const mediaType = item.type || '';
-                            const src = item.path.startsWith('data:') ? item.path : `/${item.path}`;
+                            let mediaType = item.type || '';
+                            const src = window.MemoryBookConfig ? window.MemoryBookConfig.resolveMediaUrl(item.path) : (item.path && /^(https?:|\/\/|data:)/i.test(item.path) ? item.path : `/${item.path}`);
                             
+                            if (!mediaType && typeof item.path === 'string') {
+                                const ext = window.MemoryBookConfig ? window.MemoryBookConfig.getCleanExtension(item.path) : item.path.split('?')[0].split('#')[0].split('.').pop().toLowerCase();
+                                if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) mediaType = 'image/jpeg';
+                                else if (['mp4','webm','mov','ogg'].includes(ext)) mediaType = 'video/mp4';
+                                else if (['mp3','wav','ogg','m4a','aac'].includes(ext)) mediaType = 'audio/mp3';
+                            }
+
                             mediaContentEl.innerHTML = '';
                             let mediaEl;
                             
@@ -114,15 +121,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                             } else {
                                 mediaEl = document.createElement('div');
                                 mediaEl.className = 'text-center text-gray-400 w-full';
-                                mediaEl.innerHTML = `Unsupported media type (${mediaType})`;
+                                mediaEl.innerHTML = `Unsupported media type (${mediaType || 'unknown'})`;
                             }
 
                             if (mediaEl) {
                                 mediaContentEl.appendChild(mediaEl);
                                 // Add download link
                                 const dlLink = document.createElement('a');
-                                dlLink.href = src;
-                                dlLink.download = '';
+                                const dlUrl = item.download_url || src;
+                                dlLink.href = dlUrl;
+                                dlLink.download = item.name || '';
+                                dlLink.rel = 'noopener noreferrer';
                                 dlLink.className = 'absolute bottom-4 right-4 z-20 bg-[#8B7EC8] text-white px-4 py-2 rounded-lg shadow hover:bg-[#7A6BB5] transition flex items-center gap-2';
                                 dlLink.innerHTML = `<i class="fas fa-download"></i> Download Media`;
                                 mediaContentEl.appendChild(dlLink);

@@ -22,9 +22,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
 
         const matches = allUsers.filter(u => {
-            const nameMatch = u.name ? u.name.toLowerCase().includes(query) : false;
-            const emailMatch = u.email ? u.email.toLowerCase().includes(query) : false;
-            return nameMatch || emailMatch;
+            const name = (u.name || u.username || '').toLowerCase();
+            const email = (u.email || '').toLowerCase();
+            return name.includes(query) || email.includes(query);
         });
 
         if (matches.length > 0) {
@@ -34,13 +34,14 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
 
         matches.forEach(user => {
+            const displayName = user.name || user.username || user.email;
             const div = document.createElement('div');
             div.className = 'px-4 py-2 hover:bg-[#F5F3FB] cursor-pointer text-sm text-[#2D2A3D] border-b border-[#E8E3F5] last:border-0';
-            div.textContent = `${user.name} (${user.email})`;
+            div.textContent = `${displayName} (${user.email})`;
             div.onclick = () => {
-                document.getElementById('friendName').value = user.name || user.email;
+                document.getElementById('friendName').value = displayName;
                 document.getElementById('friendEmail').value = user.email;
-                userSearchInput.value = user.name;
+                userSearchInput.value = displayName;
                 userSuggestions.innerHTML = '';
                 userSuggestions.classList.add('hidden');
             };
@@ -133,12 +134,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
 
         try {
-            const res = await axios.post('/api/friends', formData, {
+            await axios.post('/api/friends/requests', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
+            alert('Friend request sent! They will appear in your friends list once they accept.');
             window.location.href="/friends/view_friends.html";
         } catch (error) {
-            err.textContent = error.response?.data?.error || 'Failed to add friend';
+            err.textContent = error.response?.data?.error || 'Failed to send friend request';
             err.classList.remove('hidden');
         }
     });

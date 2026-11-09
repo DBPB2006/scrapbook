@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-service
+  namespace: memorybook
+  labels:
+    app: gateway-service
+    app.kubernetes.io/name: gateway-service
+    app.kubernetes.io/part-of: memorybook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-service
+  template:
+    metadata:
+      labels:
+        app: gateway-service
+        app.kubernetes.io/name: gateway-service
+        app.kubernetes.io/part-of: memorybook
+    spec:
+      containers:
+      - name: gateway-service
+        image: scrapbook-gateway:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 3090
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "3090"
+        - name: NODE_ENV
+          value: "production"
+        - name: AUTH_SERVICE_URL
+          value: "http://auth-service:3001"
+        - name: MEMORIES_SERVICE_URL
+          value: "http://memories-service:3002"
+        - name: SOCIAL_SERVICE_URL
+          value: "http://social-service:3003"
+        - name: SHARING_SERVICE_URL
+          value: "http://sharing-service:3004"
+        # Configure with the deployed S3 static website origin (never use wildcard '*')
+        - name: FRONTEND_ORIGIN
+          value: "http://<FRONTEND_S3_WEBSITE_ORIGIN>"
+        envFrom:
+        - secretRef:
+            name: app-secrets
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3090
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3090
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+

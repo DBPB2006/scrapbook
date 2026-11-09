@@ -56,45 +56,78 @@ document.addEventListener('DOMContentLoaded', async () => {
             createMarkers(defs);
             svg.appendChild(defs);
             
-            if (showMemories) {
-                for (let i = 0; i < graphData.userCount; i++) {
-                    for (let j = i + 1; j < graphData.userCount; j++) {
-                        const freq = graphData.memoryMatrix[i][j];
-                        if (freq > 0) {
-                            const p1 = graphData.nodePositions[i], p2 = graphData.nodePositions[j];
-                            const offset = -12;
-                            const { x1, y1, x2, y2 } = getEdgeEndpoints(p1, p2, 28, offset);
-                            svg.appendChild(createSvgElement('line', { x1, y1, x2, y2, stroke: memoryColor, 'stroke-width': 2 + freq, 'stroke-dasharray': '7,7', opacity: 0.7 }));
-                            
-                            const edgeKey = i < j ? i + '_' + j : j + '_' + i;
-                            if (graphData.memoryEdges[edgeKey]) {
-                                const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-                                graphData.memoryEdges[edgeKey].forEach(mem => {
-                                    const f = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-                                    f.setAttribute('x', mx - 40); f.setAttribute('y', my - 16); f.setAttribute('width', 80); f.setAttribute('height', 32);
-                                    const div = document.createElement('div');
-                                    div.setAttribute('class', 'memory-pill');
-                                    div.innerText = mem.title;
-                                    div.onclick = () => { window.location.href="/memories/memory_details.html?id=" + encodeURIComponent(mem.id); };
-                                    f.appendChild(div);
-                                    svg.appendChild(f);
-                                });
-                            }
-                        }
+            // Render Memory Edges from memoryEdges collection
+            if (showMemories && graphData.memoryEdges) {
+                for (const edgeKey in graphData.memoryEdges) {
+                    const parts = edgeKey.split('_');
+                    const i = parseInt(parts[0], 10);
+                    const j = parseInt(parts[1], 10);
+                    const memoriesList = graphData.memoryEdges[edgeKey];
+                    const freq = memoriesList ? memoriesList.length : 0;
+                    
+                    if (freq > 0 && graphData.nodePositions[i] && graphData.nodePositions[j]) {
+                        const p1 = graphData.nodePositions[i], p2 = graphData.nodePositions[j];
+                        const offset = -12;
+                        const { x1, y1, x2, y2 } = getEdgeEndpoints(p1, p2, 28, offset);
+                        svg.appendChild(createSvgElement('line', {
+                            x1, y1, x2, y2,
+                            stroke: memoryColor,
+                            'stroke-width': 2 + freq,
+                            'stroke-dasharray': '7,7',
+                            opacity: 0.7
+                        }));
+                        
+                        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+                        memoriesList.forEach(mem => {
+                            const f = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+                            f.setAttribute('x', mx - 40); f.setAttribute('y', my - 16);
+                            f.setAttribute('width', 80); f.setAttribute('height', 32);
+                            const div = document.createElement('div');
+                            div.setAttribute('class', 'memory-pill');
+                            div.innerText = mem.title;
+                            div.onclick = () => { window.location.href="/memories/memory_details.html?id=" + encodeURIComponent(mem.id); };
+                            f.appendChild(div);
+                            svg.appendChild(f);
+                        });
                     }
                 }
             }
             
+            // Render Friendship Edges directly from Undirected Adjacency List
             if (showFriendships) {
-                for (let i = 0; i < graphData.userCount; i++) {
-                    for (let j = 0; j < graphData.userCount; j++) {
-                        if (graphData.friendshipMatrix[i][j]) {
-                            const p1 = graphData.nodePositions[i], p2 = graphData.nodePositions[j];
-                            let offset = 0;
-                            if (graphData.friendshipMatrix[j][i] && i !== j) offset = 12;
-                            const { x1, y1, x2, y2 } = getEdgeEndpoints(p1, p2, 28, offset);
-                            svg.appendChild(createSvgElement('line', { x1, y1, x2, y2, stroke: friendshipColor, 'stroke-width': 2, opacity: 0.8, 'marker-end': 'url(#arrowhead)' }));
-                        }
+                const drawnEdges = new Set();
+                const adjList = graphData.adjacencyList || {};
+                
+                // Map email to node index
+                const emailToIdx = graphData.emailIndexMap || {};
+                if (graphData.users && Object.keys(emailToIdx).length === 0) {
+                    graphData.users.forEach((u, idx) => {
+                        if (u.email) emailToIdx[u.email.toLowerCase()] = idx;
+                    });
+                }
+
+                for (const uEmail in adjList) {
+                    const i = emailToIdx[uEmail.toLowerCase()];
+                    if (i === undefined) continue;
+                    const neighbors = adjList[uEmail] || [];
+                    for (const vEmail of neighbors) {
+                        const j = emailToIdx[vEmail.toLowerCase()];
+                        if (j === undefined || i === j) continue;
+
+                        // Prevent drawing duplicate undirected edges between i and j
+                        const edgeKey = i < j ? `${i}_${j}` : `${j}_${i}`;
+                        if (drawnEdges.has(edgeKey)) continue;
+                        drawnEdges.add(edgeKey);
+
+                        const p1 = graphData.nodePositions[i], p2 = graphData.nodePositions[j];
+                        if (!p1 || !p2) continue;
+                        const { x1, y1, x2, y2 } = getEdgeEndpoints(p1, p2, 28, 0);
+                        svg.appendChild(createSvgElement('line', {
+                            x1, y1, x2, y2,
+                            stroke: friendshipColor,
+                            'stroke-width': 2,
+                            opacity: 0.8
+                        }));
                     }
                 }
             }
@@ -153,7 +186,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         };
 
-        const LOCATIONIQ_API_KEY = "pk.235663a366caa807557a9a233647f569";
+        const LOCATIONIQ_API_KEY = (window.MemoryBookConfig && window.MemoryBookConfig.LOCATIONIQ_API_KEY) || "pk.235663a366caa807557a9a233647f569";
         function geocodeLocation(location) {
           const cacheKey = 'geocode_' + location;
           const cached = sessionStorage.getItem(cacheKey);

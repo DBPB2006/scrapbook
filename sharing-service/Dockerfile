@@ -1,15 +1,15 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
 ENV NODE_ENV=production
-COPY sharing-service/package*.json ./
-RUN npm install
 
-COPY sharing-service/sharing_server.js sharing-service/sharing_common_functions.js ./
-COPY shared/s3_storage.js shared/metrics.js ./shared/
-# Volumes for data and uploads will be mounted at runtime
+COPY sharing-service/package*.json ./
+RUN npm install --omit=dev
+
+COPY sharing-service/ ./
+COPY shared/ ./shared/
 
 EXPOSE 3004
 
-CMD [ "node", "sharing_server.js" ]
+CMD ["node", "sharing_server.js"]

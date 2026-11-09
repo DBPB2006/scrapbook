@@ -1,0 +1,61 @@
+# ==============================================================================
+# Docker BuildKit Ignore Rules — gateway-service (Repository Root Build Context)
+# Usage: docker build -f gateway-service/Dockerfile .
+# ==============================================================================
+
+# Version control & editor/OS artifacts
+.git/
+.gitignore
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Infrastructure, CI/CD, Kubernetes manifests & Frontend
+.terraform/
+**/.terraform/
+terraform/
+*.tfstate*
+deployment/
+client/
+Jenkinsfile*
+README.md
+*.md
+*.pdf
+*.png
+
+# Security scan reports & local runtime/test artifacts
+reports/
+trivy-reports/
+coverage/
+.nyc_output/
+uploads/
+**/uploads/
+data/
+**/data/
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Secrets & environment files (never bake into images)
+.env
+.env.*
+**/.env
+**/.env.*
+*.pem
+*.key
+
+# Host Node dependencies (installed cleanly inside container)
+node_modules/
+**/node_modules/
+
+# Unrelated microservices (not needed by gateway-service)
+auth-service/
+memories-service/
+social-service/
+sharing-service/
+

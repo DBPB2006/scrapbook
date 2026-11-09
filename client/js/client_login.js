@@ -85,10 +85,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 try {
                     const response = await axios.post('/api/login', { email, password });
+                    if (response.data.token) {
+                        sessionStorage.setItem('mb_access_token', response.data.token);
+                    }
                     if (response.data.success) {
                         showMessage('success', 'Login successful! Redirecting...');
                         setTimeout(() => {
-                            window.location.href = '/dashboard.html';
+                            window.location.href = response.data.redirect || '/dashboard.html';
                         }, 1000);
                     }
                 } catch (error) {

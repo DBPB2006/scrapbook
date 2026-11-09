@@ -58,14 +58,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (query.length < 1) return;
 
                     const matches = allUsers.filter(u => 
-                        u.name.toLowerCase().includes(query) || 
-                        u.email.toLowerCase().includes(query)
+                        (u.name && u.name.toLowerCase().includes(query)) || 
+                        (u.username && u.username.toLowerCase().includes(query)) ||
+                        (u.email && u.email.toLowerCase().includes(query))
                     );
 
                     matches.forEach(user => {
                         const div = document.createElement('div');
                         div.className = 'px-4 py-2 hover:bg-[#F5F3FB] cursor-pointer text-sm text-[#2D2A3D] border-b border-[#E8E3F5] last:border-0';
-                        div.textContent = `${user.name} (${user.email})`;
+                        const displayName = user.name || user.username || user.email;
+                        div.textContent = `${displayName} (${user.email})`;
                         div.onclick = () => {
                             if (!selectedFriendEmails.has(user.email)) {
                                 selectedFriendEmails.add(user.email);
@@ -73,7 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 const badge = document.createElement('div');
                                 badge.className = 'inline-flex items-center bg-[#8B7EC8] text-white px-3 py-1 rounded-full mr-2 mb-2 text-sm';
                                 badge.innerHTML = `
-                                    ${user.name} 
+                                    ${displayName} 
                                     <button type="button" class="ml-2 hover:text-[#2D2A3D]"><i class="fas fa-times"></i></button>
                                 `;
                                 badge.querySelector('button').onclick = function() {
@@ -106,7 +108,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // LOCATION AUTOCOMPLETE
             const locationInput = document.getElementById('location');
             const locationSuggestions = document.getElementById('locationSuggestions');
-            const LOCATIONIQ_API_KEY = "pk.235663a366caa807557a9a233647f569";
+            const LOCATIONIQ_API_KEY = (window.MemoryBookConfig && window.MemoryBookConfig.LOCATIONIQ_API_KEY) || "pk.235663a366caa807557a9a233647f569";
             let locationTimeout = null;
 
             locationInput.addEventListener('input', function() {

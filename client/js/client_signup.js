@@ -18,6 +18,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('deleted') === '1') {
+                sessionStorage.removeItem('mb_access_token');
+                showMessage('success', 'Your account has been permanently deleted.');
+            }
+
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 

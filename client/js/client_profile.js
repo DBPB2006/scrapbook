@@ -38,8 +38,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     document.getElementById('displayUsername').textContent = `@${user.username || ''}`;
 
                     let imgUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.first_name + ' ' + user.last_name)}&background=A8C8EC&color=fff&size=200`;
-                    if (user.profile_pic && user.profile_pic.startsWith('uploads/')) {
-                        imgUrl = '/' + user.profile_pic;
+                    if (user.profile_pic) {
+                        const resolved = window.MemoryBookConfig ? window.MemoryBookConfig.resolveMediaUrl(user.profile_pic) : user.profile_pic;
+                        if (resolved) imgUrl = resolved;
                     }
                     document.getElementById('avatarImg').src = imgUrl;
 
@@ -52,8 +53,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         let html = '';
                         friends.forEach(friend => {
                             let fImg = `https://ui-avatars.com/api/?name=${encodeURIComponent(friend.name || 'U')}&background=random`;
-                            if (friend.image_url && friend.image_url.startsWith('uploads/')) {
-                                fImg = '/' + friend.image_url;
+                            if (friend.image_url) {
+                                const resolved = window.MemoryBookConfig ? window.MemoryBookConfig.resolveMediaUrl(friend.image_url) : friend.image_url;
+                                if (resolved) fImg = resolved;
                             }
                             html += `
                             <div class="flex items-center space-x-4 p-3 hover:bg-[#F5F3FB] rounded-xl transition border border-transparent hover:border-[#E8E3F5]">
@@ -136,6 +138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (confirm('Are you sure you want to delete your account? This action cannot be undone and you will lose all your memories.')) {
                     try {
                         await axios.post('/api/users/profile/delete_account');
+                        sessionStorage.removeItem('mb_access_token');
                         window.location.href="/signup.html?deleted=1";
                     } catch (err) {
                         showMessage('error', 'Failed to delete account');

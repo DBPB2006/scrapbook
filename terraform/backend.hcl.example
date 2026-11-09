@@ -1,0 +1,8 @@
+# Example partial backend configuration for Terraform S3 remote state.
+# Copy to `backend.hcl` (never commit real environment-specific values if restricted)
+# after provisioning the versioned, encrypted Terraform state S3 bucket:
+#
+#   terraform init -backend-config=backend.hcl
+
+bucket = "<your-memory-book-tfstate-bucket>"
+

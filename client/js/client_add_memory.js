@@ -6,25 +6,44 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const res = await axios.get('/api/current_user');
                 const user = res.data;
                 const flist = document.getElementById('availableFriendsList');
+                flist.textContent = '';
                 if (user.friends && user.friends.length > 0) {
-                    let fHtml = '';
                     user.friends.forEach(f => {
-                        const em = f.email || f.friend_id;
-                        fHtml += `<label class="flex items-center gap-2 mb-2">
-                            <input type="checkbox" name="friend_check" value="${em}" data-name="${f.name}" />
-                            <span>${f.name} (${em})</span>
-                        </label>`;
-                    });
-                    flist.innerHTML = fHtml;
+                        const em = f.email || f.friend_id || '';
+                        const fName = f.name || em;
+                        const label = document.createElement('label');
+                        label.className = 'flex items-center gap-2 mb-2';
 
-                    flist.querySelectorAll('input[type=checkbox]').forEach(cb => {
+                        const cb = document.createElement('input');
+                        cb.type = 'checkbox';
+                        cb.name = 'friend_check';
+                        cb.value = em;
+                        cb.dataset.name = fName;
                         cb.addEventListener('change', function() {
                             if (this.checked) selectedFriendEmails.add(this.value);
                             else selectedFriendEmails.delete(this.value);
                         });
+
+                        const span = document.createElement('span');
+                        span.textContent = `${fName} (${em})`;
+
+                        label.appendChild(cb);
+                        label.appendChild(span);
+                        flist.appendChild(label);
                     });
                 } else {
-                    flist.innerHTML = '<span class="text-sm text-gray-500 block mb-3">No friends added yet.</span><a href="/friends/add_friend.html" class="text-[#8B7EC8] font-medium hover:underline inline-flex items-center text-sm"><i class="fas fa-user-plus mr-2"></i>Add a friend</a>';
+                    const emptySpan = document.createElement('span');
+                    emptySpan.className = 'text-sm text-gray-500 block mb-3';
+                    emptySpan.textContent = 'No friends added yet.';
+                    const addLink = document.createElement('a');
+                    addLink.href = '/friends/add_friend.html';
+                    addLink.className = 'text-[#8B7EC8] font-medium hover:underline inline-flex items-center text-sm';
+                    const icon = document.createElement('i');
+                    icon.className = 'fas fa-user-plus mr-2';
+                    addLink.appendChild(icon);
+                    addLink.appendChild(document.createTextNode('Add a friend'));
+                    flist.appendChild(emptySpan);
+                    flist.appendChild(addLink);
                 }
             } catch(e) {
                 console.error(e);
@@ -69,30 +88,40 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const displayName = user.name || user.username || user.email;
                         div.textContent = `${displayName} (${user.email})`;
                         div.onclick = () => {
+                            const findFriendCheckbox = (email) => {
+                                const listEl = document.getElementById('availableFriendsList');
+                                if (!listEl) return null;
+                                return Array.from(listEl.querySelectorAll('input[type="checkbox"]')).find(cb => cb.value === email) || null;
+                            };
                             if (!selectedFriendEmails.has(user.email)) {
                                 selectedFriendEmails.add(user.email);
-                                
+
                                 const badge = document.createElement('div');
                                 badge.className = 'inline-flex items-center bg-[#8B7EC8] text-white px-3 py-1 rounded-full mr-2 mb-2 text-sm';
-                                badge.innerHTML = `
-                                    ${displayName} 
-                                    <button type="button" class="ml-2 hover:text-[#2D2A3D]"><i class="fas fa-times"></i></button>
-                                `;
-                                badge.querySelector('button').onclick = function() {
+                                badge.appendChild(document.createTextNode(displayName + ' '));
+
+                                const rmBtn = document.createElement('button');
+                                rmBtn.type = 'button';
+                                rmBtn.className = 'ml-2 hover:text-[#2D2A3D]';
+                                const timesIcon = document.createElement('i');
+                                timesIcon.className = 'fas fa-times';
+                                rmBtn.appendChild(timesIcon);
+                                rmBtn.onclick = function() {
                                     badge.remove();
                                     selectedFriendEmails.delete(user.email);
                                     // Uncheck if it was in the checkbox list
-                                    const cb = document.querySelector(`#availableFriendsList input[value='${user.email}']`);
+                                    const cb = findFriendCheckbox(user.email);
                                     if (cb) cb.checked = false;
                                 };
+                                badge.appendChild(rmBtn);
                                 selectedFriends.appendChild(badge);
-                                
+
                                 // Check if it was in the checkbox list
-                                const cb = document.querySelector(`#availableFriendsList input[value='${user.email}']`);
+                                const cb = findFriendCheckbox(user.email);
                                 if (cb) cb.checked = true;
                             }
                             userSearchInput.value = '';
-                            userSuggestions.innerHTML = '';
+                            userSuggestions.textContent = '';
                         };
                         userSuggestions.appendChild(div);
                     });
@@ -108,19 +137,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             // LOCATION AUTOCOMPLETE
             const locationInput = document.getElementById('location');
             const locationSuggestions = document.getElementById('locationSuggestions');
-            const LOCATIONIQ_API_KEY = (window.MemoryBookConfig && window.MemoryBookConfig.LOCATIONIQ_API_KEY) || "pk.235663a366caa807557a9a233647f569";
+            const LOCATIONIQ_API_KEY = (window.MemoryBookConfig && window.MemoryBookConfig.LOCATIONIQ_API_KEY) || '';
             let locationTimeout = null;
 
             locationInput.addEventListener('input', function() {
                 const query = this.value.trim();
                 locationSuggestions.innerHTML = '';
-                if (query.length < 3) {
+                if (!LOCATIONIQ_API_KEY || query.length < 3) {
                     locationSuggestions.classList.add('hidden');
                     return;
                 }
                 clearTimeout(locationTimeout);
                 locationTimeout = setTimeout(() => {
-                    fetch(`https://us1.locationiq.com/v1/autocomplete?key=${LOCATIONIQ_API_KEY}&q=${encodeURIComponent(query)}&limit=5&format=json`)
+                    fetch(`https://us1.locationiq.com/v1/autocomplete?key=${encodeURIComponent(LOCATIONIQ_API_KEY)}&q=${encodeURIComponent(query)}&limit=5&format=json`)
                         .then(res => res.json())
                         .then(data => {
                             locationSuggestions.innerHTML = '';
@@ -172,7 +201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             function renderPreviews() {
-                mediaPreviewContainer.innerHTML = '';
+                mediaPreviewContainer.textContent = '';
                 Array.from(dataTransfer.files).forEach((file, index) => {
                     const url = URL.createObjectURL(file);
                     const wrapper = document.createElement('div');
@@ -193,18 +222,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } else if (file.type.startsWith('audio/')) {
                         el = document.createElement('div');
                         el.className = 'w-full h-24 rounded-lg bg-gray-100 flex flex-col items-center justify-center p-2';
-                        el.innerHTML = `<i class="fa fa-music text-3xl text-[#8B7EC8]"></i><p class="text-xs text-center truncate w-full mt-2">${file.name}</p>`;
+                        const icon = document.createElement('i');
+                        icon.className = 'fa fa-music text-3xl text-[#8B7EC8]';
+                        const nameP = document.createElement('p');
+                        nameP.className = 'text-xs text-center truncate w-full mt-2';
+                        nameP.textContent = file.name;
+                        el.appendChild(icon);
+                        el.appendChild(nameP);
                     } else {
                         el = document.createElement('div');
                         el.className = 'w-full h-24 rounded-lg bg-gray-100 flex flex-col items-center justify-center p-2';
-                        el.innerHTML = `<i class="fa fa-file-alt text-3xl text-[#8B7EC8]"></i><p class="text-xs text-center truncate w-full mt-2">${file.name}</p>`;
+                        const icon = document.createElement('i');
+                        icon.className = 'fa fa-file-alt text-3xl text-[#8B7EC8]';
+                        const nameP = document.createElement('p');
+                        nameP.className = 'text-xs text-center truncate w-full mt-2';
+                        nameP.textContent = file.name;
+                        el.appendChild(icon);
+                        el.appendChild(nameP);
                     }
                     wrapper.appendChild(el);
 
                     const removeBtn = document.createElement('button');
                     removeBtn.type = 'button';
                     removeBtn.className = 'absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs';
-                    removeBtn.innerHTML = '<i class="fa fa-times"></i>';
+                    const rmIcon = document.createElement('i');
+                    rmIcon.className = 'fa fa-times';
+                    removeBtn.appendChild(rmIcon);
                     removeBtn.onclick = () => {
                         dataTransfer.items.remove(index);
                         updateFileInput();
@@ -291,11 +334,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const res = await axios.post('/api/memories', formData, {
                         headers: { 'Content-Type': 'multipart/form-data' }
                     });
-                    fb.innerHTML = `<div class="bg-green-100 text-green-700 p-3 rounded">${res.data.message}</div>`;
+                    fb.textContent = '';
+                    const msgBox = document.createElement('div');
+                    msgBox.className = 'bg-green-100 text-green-700 p-3 rounded';
+                    msgBox.textContent = res.data.message || 'Memory created successfully';
+                    fb.appendChild(msgBox);
                     fb.className = 'mb-4 block';
                     setTimeout(() => window.location.href="/dashboard.html", 1500);
                 } catch(err) {
-                    fb.innerHTML = `<div class="bg-red-100 text-red-700 p-3 rounded">${err.response?.data?.error || 'Failed'}</div>`;
+                    fb.textContent = '';
+                    const msgBox = document.createElement('div');
+                    msgBox.className = 'bg-red-100 text-red-700 p-3 rounded';
+                    msgBox.textContent = err.response?.data?.error || 'Failed';
+                    fb.appendChild(msgBox);
                     fb.className = 'mb-4 block';
                 }
             });

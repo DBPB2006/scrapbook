@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: memorybook
+  labels:
+    app.kubernetes.io/part-of: memorybook
+data:
+  NODE_ENV: "production"
+  AWS_REGION: "ap-south-1"
+  # Populated during Jenkins deployment from Terraform output media_bucket_name
+  AWS_S3_BUCKET: "<MEDIA_S3_BUCKET>"
+  MONGODB_DATABASE: "memorybook"
+  MONGODB_AUTH_SOURCE: "memorybook"
+  MONGODB_POOL_MAX: "10"
+

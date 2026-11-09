@@ -9,21 +9,17 @@
  * Utilizes centralized singleton connection pool from shared/mongodb.js.
  */
 
-// Resolve shared MongoDB connection module safely across container, root, and service execution contexts
-let mongodb = null;
-try {
-    mongodb = require('../../shared/mongodb');
-} catch (e1) {
-    try {
-        mongodb = require('../shared/mongodb');
-    } catch (e2) {
-        try {
-            mongodb = require('./shared/mongodb');
-        } catch (e3) {
-            mongodb = null;
-        }
-    }
-}
+const fs = require('fs');
+const path = require('path');
+
+const hasParentShared = fs.existsSync(path.join(__dirname, '..', 'shared'));
+const mongodb = hasParentShared ? require('../shared/mongodb') : require('../../shared/mongodb');
+const {
+    normalizeEmail,
+    escapeRegex,
+    removeEmailFromFriendsArray,
+    replaceEmailInFriendsArray
+} = hasParentShared ? require('../shared/service_common') : require('../../shared/service_common');
 
 function isDbConnected() {
     return !!(mongodb && typeof mongodb.isConnected === 'function' && mongodb.isConnected());
@@ -41,11 +37,6 @@ function getTimeCapsulesCollection() {
         throw new Error('MongoDB unavailable: Cannot access time_capsules collection without an active database connection');
     }
     return mongodb.getCollection(mongodb.COLLECTIONS.TIME_CAPSULES);
-}
-
-function normalizeEmail(email) {
-    if (!email || typeof email !== 'string') return '';
-    return email.trim().toLowerCase();
 }
 
 // =============================================================================
@@ -66,20 +57,25 @@ async function load_all_shared_memories() {
 }
 
 /**
- * Retrieves all shared memories where user is sender or recipient.
+ * Retrieves all shared memories where user is sender or recipient, newest first.
  */
-async function get_user_shared_memories(email) {
+async function get_user_shared_memories(email, options = {}) {
     const target = normalizeEmail(email);
     if (!target) return [];
 
     const collection = getSharedMemoriesCollection();
     try {
-        return await collection.find({
+        const findOpts = { projection: (options && options.projection) ? options.projection : { _id: 0 } };
+        let cursor = collection.find({
             $or: [
                 { from: target },
                 { to: target }
             ]
-        }, { projection: { _id: 0 } }).toArray();
+        }, findOpts);
+        if (typeof cursor.sort === 'function') {
+            cursor = cursor.sort({ created_at: -1, date: -1 });
+        }
+        return await cursor.toArray();
     } catch (err) {
         console.error('MemoryBook Sharing: MongoDB get_user_shared_memories error:', err.message);
         throw new Error(`Failed to query user shared memories from MongoDB: ${err.message}`);
@@ -87,7 +83,7 @@ async function get_user_shared_memories(email) {
 }
 
 /**
- * Retrieves all shared memories received by a specific user.
+ * Retrieves all shared memories received by a specific user, newest first.
  */
 async function get_received_shared_memories(toEmail) {
     const target = normalizeEmail(toEmail);
@@ -95,7 +91,11 @@ async function get_received_shared_memories(toEmail) {
 
     const collection = getSharedMemoriesCollection();
     try {
-        return await collection.find({ to: target }, { projection: { _id: 0 } }).toArray();
+        let cursor = collection.find({ to: target }, { projection: { _id: 0 } });
+        if (typeof cursor.sort === 'function') {
+            cursor = cursor.sort({ created_at: -1, date: -1 });
+        }
+        return await cursor.toArray();
     } catch (err) {
         console.error('MemoryBook Sharing: MongoDB get_received_shared_memories error:', err.message);
         throw new Error(`Failed to query received shared memories from MongoDB: ${err.message}`);
@@ -103,25 +103,95 @@ async function get_received_shared_memories(toEmail) {
 }
 
 /**
- * Retrieves an individual shared memory targeted to the recipient.
+ * Retrieves an exact shared memory record by its unique share-record identifier (`memory_id`).
  */
-async function get_shared_memory_by_id(memoryId, toEmail) {
-    if (!memoryId) return null;
-    const target = normalizeEmail(toEmail);
+async function get_shared_memory_by_record_id(memoryId) {
+    if (!memoryId || typeof memoryId !== 'string') return null;
 
     const collection = getSharedMemoriesCollection();
     try {
-        return await collection.findOne({
-            to: target,
-            $or: [
-                { memory_id: memoryId },
-                { original_memory_id: memoryId }
-            ]
-        }, { projection: { _id: 0 } });
+        return await collection.findOne({ memory_id: memoryId.trim() }, { projection: { _id: 0 } });
     } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB get_shared_memory_by_id error:', err.message);
-        throw new Error(`Failed to query shared memory by ID from MongoDB: ${err.message}`);
+        console.error('MemoryBook Sharing: MongoDB get_shared_memory_by_record_id error:', err.message);
+        throw new Error(`Failed to query shared memory by record ID from MongoDB: ${err.message}`);
     }
+}
+
+/**
+ * Retrieves all share records associated with an original memory ID, newest first.
+ */
+async function get_shared_memories_by_original_id(originalMemoryId) {
+    if (!originalMemoryId || typeof originalMemoryId !== 'string') return [];
+
+    const collection = getSharedMemoriesCollection();
+    try {
+        return await collection
+            .find({ original_memory_id: originalMemoryId.trim() }, { projection: { _id: 0 } })
+            .sort({ created_at: -1, date: -1 })
+            .toArray();
+    } catch (err) {
+        console.error('MemoryBook Sharing: MongoDB get_shared_memories_by_original_id error:', err.message);
+        throw new Error(`Failed to query shared memories by original ID from MongoDB: ${err.message}`);
+    }
+}
+
+/**
+ * Resolves a shared memory for either its sender or intended recipient with explicit authorization.
+ * Prioritizes unique share-record ID (`memory_id`) before falling back to `original_memory_id`.
+ */
+async function get_shared_memory_for_user(identifier, userEmail, options = {}) {
+    if (!identifier || typeof identifier !== 'string') {
+        return { found: false, authorized: false, record: null };
+    }
+    const target = normalizeEmail(userEmail);
+    const cleanId = identifier.trim();
+
+    // 1. Primary lookup: unique share-record identifier
+    const exactRecord = await get_shared_memory_by_record_id(cleanId);
+    if (exactRecord) {
+        const isSender = target && normalizeEmail(exactRecord.from) === target;
+        const isRecipient = target && normalizeEmail(exactRecord.to) === target;
+        if (!isSender && !isRecipient) {
+            return { found: true, authorized: false, record: null };
+        }
+        return { found: true, authorized: true, record: exactRecord };
+    }
+
+    // 2. Fallback lookup: legacy links passing original_memory_id (handles multi-share cleanly)
+    const originalMatches = await get_shared_memories_by_original_id(cleanId);
+    if (!originalMatches || originalMatches.length === 0) {
+        return { found: false, authorized: false, record: null };
+    }
+
+    if (!target) {
+        return { found: true, authorized: false, record: null };
+    }
+
+    let authorizedMatches = originalMatches.filter(
+        r => normalizeEmail(r.from) === target || normalizeEmail(r.to) === target
+    );
+
+    if (authorizedMatches.length === 0) {
+        return { found: true, authorized: false, record: null };
+    }
+
+    if (options && options.to) {
+        const requestedTo = normalizeEmail(options.to);
+        authorizedMatches = authorizedMatches.filter(r => normalizeEmail(r.to) === requestedTo);
+        if (authorizedMatches.length === 0) {
+            return { found: true, authorized: true, record: null };
+        }
+    }
+
+    // Deterministic ordering: prefer record where user is recipient over sent, then newest timestamp
+    authorizedMatches.sort((a, b) => {
+        const aIsRecipient = normalizeEmail(a.to) === target ? 1 : 0;
+        const bIsRecipient = normalizeEmail(b.to) === target ? 1 : 0;
+        if (aIsRecipient !== bIsRecipient) return bIsRecipient - aIsRecipient;
+        return new Date(b.created_at || b.date || 0) - new Date(a.created_at || a.date || 0);
+    });
+
+    return { found: true, authorized: true, record: authorizedMatches[0] };
 }
 
 /**
@@ -150,45 +220,42 @@ async function add_shared_memory(record) {
 }
 
 /**
- * Marks a received shared memory as seen.
+ * Marks a received shared memory as seen (restricted strictly to the intended recipient).
+ * Targets exact `memory_id` first to avoid colliding across multiple shares of the same original memory.
  */
 async function mark_shared_memory_seen(memoryId, toEmail) {
-    if (!memoryId) return false;
+    if (!memoryId || typeof memoryId !== 'string') return false;
     const target = normalizeEmail(toEmail);
+    if (!target) return false;
+    const cleanId = memoryId.trim();
 
     const collection = getSharedMemoriesCollection();
     try {
-        const res = await collection.updateOne(
-            {
-                to: target,
-                $or: [
-                    { memory_id: memoryId },
-                    { original_memory_id: memoryId }
-                ]
-            },
+        const exactRes = await collection.updateOne(
+            { memory_id: cleanId, to: target },
             { $set: { seen: true } }
         );
-        return res.modifiedCount > 0;
+        if (exactRes.matchedCount > 0) {
+            return exactRes.modifiedCount > 0;
+        }
+
+        // Legacy fallback by original_memory_id scoped strictly to the recipient
+        const fallbackDoc = await collection
+            .find({ original_memory_id: cleanId, to: target })
+            .sort({ created_at: -1, date: -1 })
+            .limit(1)
+            .toArray();
+        if (fallbackDoc && fallbackDoc.length > 0 && fallbackDoc[0].memory_id) {
+            const res = await collection.updateOne(
+                { memory_id: fallbackDoc[0].memory_id, to: target },
+                { $set: { seen: true } }
+            );
+            return res.modifiedCount > 0;
+        }
+        return false;
     } catch (err) {
         console.error('MemoryBook Sharing: MongoDB mark_shared_memory_seen error:', err.message);
         throw new Error(`Failed to mark shared memory seen in MongoDB: ${err.message}`);
-    }
-}
-
-/**
- * Deletes a shared memory by ID with sender authorization.
- */
-async function delete_shared_memory(memoryId, fromEmail) {
-    if (!memoryId) return false;
-    const source = normalizeEmail(fromEmail);
-
-    const collection = getSharedMemoriesCollection();
-    try {
-        const res = await collection.deleteOne({ memory_id: memoryId, from: source });
-        return res.deletedCount > 0;
-    } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB delete_shared_memory error:', err.message);
-        throw new Error(`Failed to delete shared memory from MongoDB: ${err.message}`);
     }
 }
 
@@ -197,33 +264,25 @@ async function delete_shared_memory(memoryId, fromEmail) {
 // =============================================================================
 
 /**
- * Loads all time capsules across the platform.
- */
-async function load_all_capsules() {
-    const collection = getTimeCapsulesCollection();
-    try {
-        return await collection.find({}, { projection: { _id: 0 } }).toArray();
-    } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB load_all_capsules error:', err.message);
-        throw new Error(`Failed to load time capsules from MongoDB: ${err.message}`);
-    }
-}
-
-/**
  * Retrieves all capsules where user is sender or recipient.
  */
-async function get_user_capsules(email) {
+async function get_user_capsules(email, options = {}) {
     const target = normalizeEmail(email);
     if (!target) return [];
 
     const collection = getTimeCapsulesCollection();
     try {
-        return await collection.find({
+        const projection = (options && options.projection) ? options.projection : { _id: 0 };
+        let cursor = collection.find({
             $or: [
                 { user_email: target },
                 { recipient_email: target }
             ]
-        }, { projection: { _id: 0 } }).toArray();
+        }, { projection });
+        if (typeof cursor.sort === 'function') {
+            cursor = cursor.sort({ reveal_date: 1 });
+        }
+        return await cursor.toArray();
     } catch (err) {
         console.error('MemoryBook Sharing: MongoDB get_user_capsules error:', err.message);
         throw new Error(`Failed to query user capsules from MongoDB: ${err.message}`);
@@ -247,12 +306,16 @@ async function get_capsule_by_id(id) {
 
 /**
  * Retrieves all locked capsules (unlocked != 1).
- * Critical for BinaryMinHeap priority queue reconstruction on boot.
+ * Utilizes idx_tc_unlocked_reveal ({ unlocked: 1, reveal_date: 1 }) for BinaryMinHeap reconstruction.
  */
 async function get_locked_capsules() {
     const collection = getTimeCapsulesCollection();
     try {
-        return await collection.find({ unlocked: { $ne: 1 } }, { projection: { _id: 0 } }).toArray();
+        let cursor = collection.find({ unlocked: { $ne: 1 } }, { projection: { _id: 0 } });
+        if (typeof cursor.sort === 'function') {
+            cursor = cursor.sort({ reveal_date: 1 });
+        }
+        return await cursor.toArray();
     } catch (err) {
         console.error('MemoryBook Sharing: MongoDB get_locked_capsules error:', err.message);
         throw new Error(`Failed to query locked capsules from MongoDB: ${err.message}`);
@@ -304,42 +367,258 @@ async function unlock_capsule(id) {
 }
 
 /**
- * Deletes a time capsule by ID with owner authorization.
+ * Cleans up shared memories and time capsules associated with a deleted account.
  */
-async function delete_capsule(id, userEmail) {
-    if (!id) return false;
-    const source = normalizeEmail(userEmail);
-
-    const collection = getTimeCapsulesCollection();
-    try {
-        const res = await collection.deleteOne({ id, user_email: source });
-        return res.deletedCount > 0;
-    } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB delete_capsule error:', err.message);
-        throw new Error(`Failed to delete time capsule from MongoDB: ${err.message}`);
+async function cleanup_user_data(userEmail, session = null) {
+    const target = normalizeEmail(userEmail);
+    if (!target) {
+        return {
+            deletedSharesCount: 0,
+            modifiedSharesCount: 0,
+            deletedCapsulesCount: 0,
+            deletedShares: [],
+            modifiedShares: [],
+            deletedCapsules: []
+        };
     }
+
+    const sharesCol = getSharedMemoriesCollection();
+    const capsulesCol = getTimeCapsulesCollection();
+    const opts = session ? { session } : {};
+    const regex = new RegExp(`^${escapeRegex(target)}$`, 'i');
+
+    const shareFilter = {
+        $or: [
+            { from: target },
+            { to: target },
+            { from: { $regex: regex } },
+            { to: { $regex: regex } }
+        ]
+    };
+
+    const matchedShares = await sharesCol.find(shareFilter, opts).toArray();
+    const deletedShares = matchedShares.map(s => {
+        const copy = { ...s };
+        delete copy._id;
+        return copy;
+    });
+
+    if (matchedShares.length > 0) {
+        await sharesCol.deleteMany(shareFilter, opts);
+    }
+
+    const remainingShares = await sharesCol.find({
+        $or: [
+            { friends: target },
+            { friends: regex },
+            { 'friends.email': target },
+            { 'friends.email': regex },
+            { 'friends.friend_id': target },
+            { 'friends.friend_id': regex },
+            { 'friends.id': target },
+            { 'friends.id': regex }
+        ]
+    }, { projection: { _id: 0, memory_id: 1, friends: 1 }, ...opts }).toArray();
+    const modifiedShares = [];
+    for (const s of remainingShares) {
+        if (!Array.isArray(s.friends) || s.friends.length === 0) continue;
+        const { changed, updated } = removeEmailFromFriendsArray(s.friends, target);
+        if (changed) {
+            modifiedShares.push({
+                memory_id: s.memory_id,
+                previousFriends: JSON.parse(JSON.stringify(s.friends))
+            });
+            await sharesCol.updateOne(
+                { memory_id: s.memory_id },
+                { $set: { friends: updated } },
+                opts
+            );
+        }
+    }
+
+    const capsuleFilter = {
+        $or: [
+            { user_email: target },
+            { recipient_email: target },
+            { user_email: { $regex: regex } },
+            { recipient_email: { $regex: regex } }
+        ]
+    };
+    const matchedCapsules = await capsulesCol.find(capsuleFilter, opts).toArray();
+    const deletedCapsules = matchedCapsules.map(c => {
+        const copy = { ...c };
+        delete copy._id;
+        return copy;
+    });
+
+    if (matchedCapsules.length > 0) {
+        await capsulesCol.deleteMany(capsuleFilter, opts);
+    }
+
+    return {
+        deletedSharesCount: deletedShares.length,
+        modifiedSharesCount: modifiedShares.length,
+        deletedCapsulesCount: deletedCapsules.length,
+        deletedShares,
+        modifiedShares,
+        deletedCapsules
+    };
+}
+
+/**
+ * Compensating rollback helper for sharing & capsule cleanup.
+ */
+async function restore_user_cleanup(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return false;
+    const sharesCol = getSharedMemoriesCollection();
+    const capsulesCol = getTimeCapsulesCollection();
+
+    if (Array.isArray(snapshot.deletedShares)) {
+        for (const s of snapshot.deletedShares) {
+            if (!s || !s.memory_id) continue;
+            const copy = { ...s };
+            delete copy._id;
+            await sharesCol.updateOne(
+                { memory_id: copy.memory_id },
+                { $set: copy },
+                { upsert: true }
+            );
+        }
+    }
+
+    if (Array.isArray(snapshot.modifiedShares)) {
+        for (const item of snapshot.modifiedShares) {
+            if (!item || !item.memory_id) continue;
+            await sharesCol.updateOne(
+                { memory_id: item.memory_id },
+                { $set: { friends: item.previousFriends || [] } }
+            );
+        }
+    }
+
+    if (Array.isArray(snapshot.deletedCapsules)) {
+        for (const c of snapshot.deletedCapsules) {
+            if (!c || !c.id) continue;
+            const copy = { ...c };
+            delete copy._id;
+            await capsulesCol.updateOne(
+                { id: copy.id },
+                { $set: copy },
+                { upsert: true }
+            );
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Propagates a user's email change across shared memories and time capsules.
+ */
+async function update_user_email(oldEmail, newEmail, session = null) {
+    const oldNorm = normalizeEmail(oldEmail);
+    const newNorm = normalizeEmail(newEmail);
+    if (!oldNorm || !newNorm || oldNorm === newNorm) {
+        return { updatedSharesCount: 0, updatedCapsulesCount: 0 };
+    }
+
+    const sharesCol = getSharedMemoriesCollection();
+    const capsulesCol = getTimeCapsulesCollection();
+    const opts = session ? { session } : {};
+
+    const regex = new RegExp(`^${escapeRegex(oldNorm)}$`, 'i');
+    const matchedShares = await sharesCol.find({
+        $or: [
+            { from: oldNorm },
+            { to: oldNorm },
+            { original_owner: oldNorm },
+            { from: { $regex: regex } },
+            { to: { $regex: regex } },
+            { original_owner: { $regex: regex } },
+            { friends: oldNorm },
+            { friends: regex },
+            { 'friends.email': oldNorm },
+            { 'friends.email': regex },
+            { 'friends.friend_id': oldNorm },
+            { 'friends.friend_id': regex },
+            { 'friends.id': oldNorm },
+            { 'friends.id': regex }
+        ]
+    }, { projection: { _id: 0, memory_id: 1, from: 1, to: 1, original_owner: 1, friends: 1 }, ...opts }).toArray();
+    let updatedSharesCount = 0;
+    for (const share of matchedShares) {
+        const patch = {};
+        let touched = false;
+        if (normalizeEmail(share.from) === oldNorm) {
+            patch.from = newNorm;
+            touched = true;
+        }
+        if (normalizeEmail(share.to) === oldNorm) {
+            patch.to = newNorm;
+            touched = true;
+        }
+        if (normalizeEmail(share.original_owner) === oldNorm) {
+            patch.original_owner = newNorm;
+            touched = true;
+        }
+        if (Array.isArray(share.friends) && share.friends.length > 0) {
+            const { changed, updated } = replaceEmailInFriendsArray(share.friends, oldNorm, newNorm);
+            if (changed) {
+                patch.friends = updated;
+                touched = true;
+            }
+        }
+        if (touched) {
+            await sharesCol.updateOne(
+                { memory_id: share.memory_id },
+                { $set: patch },
+                opts
+            );
+            updatedSharesCount++;
+        }
+    }
+
+    const capsulesMatches = await capsulesCol.find({
+        $or: [
+            { user_email: oldNorm },
+            { recipient_email: oldNorm },
+            { user_email: { $regex: regex } },
+            { recipient_email: { $regex: regex } }
+        ]
+    }, opts).toArray();
+
+    let updatedCapsulesCount = 0;
+    for (const cap of capsulesMatches) {
+        const patch = {};
+        if (normalizeEmail(cap.user_email) === oldNorm) patch.user_email = newNorm;
+        if (normalizeEmail(cap.recipient_email) === oldNorm) patch.recipient_email = newNorm;
+        if (Object.keys(patch).length > 0) {
+            await capsulesCol.updateOne({ id: cap.id }, { $set: patch }, opts);
+            updatedCapsulesCount++;
+        }
+    }
+
+    return { updatedSharesCount, updatedCapsulesCount };
 }
 
 module.exports = {
     isDbConnected,
-    getSharedMemoriesCollection,
-    getTimeCapsulesCollection,
-    normalizeEmail,
     // Shared Memories
     load_all_shared_memories,
     get_user_shared_memories,
     get_received_shared_memories,
-    get_shared_memory_by_id,
+    get_shared_memory_for_user,
     add_shared_memory,
     mark_shared_memory_seen,
-    delete_shared_memory,
     // Time Capsules
-    load_all_capsules,
     get_user_capsules,
     get_capsule_by_id,
     get_locked_capsules,
     add_capsule,
     unlock_capsule,
-    delete_capsule
+    // Account Lifecycle Helpers
+    cleanup_user_data,
+    restore_user_cleanup,
+    update_user_email
 };
 

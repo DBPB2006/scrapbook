@@ -16,4 +16,23 @@ spec:
     port: 3003
     targetPort: 3003
     protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: social-service-metrics
+  namespace: memorybook
+  labels:
+    app: social-service
+    app.kubernetes.io/name: social-service
+    app.kubernetes.io/part-of: memorybook
+spec:
+  clusterIP: None
+  selector:
+    app: social-service
+  ports:
+  - name: metrics
+    port: 3003
+    targetPort: 3003
+    protocol: TCP
 

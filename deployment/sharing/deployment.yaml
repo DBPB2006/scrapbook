@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: sharing-service
-        image: scrapbook-sharing:latest
+        image: "<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/memory-book-sharing:<IMAGE_TAG>"
         imagePullPolicy: IfNotPresent
         ports:
         - name: http
@@ -30,19 +30,13 @@ spec:
         env:
         - name: PORT
           value: "3004"
-        - name: NODE_ENV
-          value: "production"
-        - name: AWS_REGION
-          value: "ap-south-1"
-        - name: AWS_S3_BUCKET
-          value: "scrapbook-media"
-        - name: MONGODB_DATABASE
-          value: "memorybook"
         - name: AUTH_SERVICE_URL
           value: "http://auth-service:3001"
         - name: MEMORIES_SERVICE_URL
           value: "http://memories-service:3002"
         envFrom:
+        - configMapRef:
+            name: app-config
         - secretRef:
             name: app-secrets
         resources:

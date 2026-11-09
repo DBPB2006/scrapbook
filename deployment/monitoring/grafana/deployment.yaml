@@ -40,6 +40,12 @@ spec:
         - name: datasource-volume
           mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
           subPath: datasources.yaml
+        - name: dashboard-volume
+          mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
+          subPath: dashboards.yaml
+        - name: dashboard-volume
+          mountPath: /etc/grafana/dashboards/memory-book.json
+          subPath: memory-book.json
         - name: storage-volume
           mountPath: /var/lib/grafana
         resources:
@@ -69,6 +75,9 @@ spec:
       - name: datasource-volume
         configMap:
           name: grafana-datasources
+      - name: dashboard-volume
+        configMap:
+          name: grafana-dashboards
       - name: storage-volume
         emptyDir: {}
 

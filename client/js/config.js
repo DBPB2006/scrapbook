@@ -1,10 +1,31 @@
 /**
  * Memory Book - Centralized Frontend Configuration
- * Manages API Base URL, JWT Bearer authentication, media resolution, and third-party API configs.
+ * Manages API Base URL, LocationIQ browser key, JWT Bearer authentication, media resolution, and third-party API configs.
+ *
+ * In AWS production deployments, Jenkins populates the deployed API_BASE_URL and
+ * LOCATIONIQ_API_KEY values directly into config.js before syncing client/ to S3.
+ * Restrict the replacement LOCATIONIQ_API_KEY via HTTP Referrer rules in the
+ * LocationIQ dashboard (never commit real keys or backend secrets to Git).
  */
 (function () {
-    // Read dynamic API_BASE_URL from deployment runtime injection or global window
-    const runtimeConfig = (typeof window !== 'undefined' && window.__MEMORYBOOK_CONFIG__) || {};
+    const DEPLOYED_API_BASE_URL = '<ALB_API_URL>';
+    const DEPLOYED_LOCATIONIQ_API_KEY = '<LOCATIONIQ_API_KEY>';
+
+    function resolveConfiguredValue(deployedValue, windowFallback) {
+        if (typeof deployedValue === 'string') {
+            const trimmed = deployedValue.trim();
+            if (trimmed && !/^<[^>]+>$/.test(trimmed)) {
+                return trimmed;
+            }
+        }
+        if (typeof windowFallback === 'string') {
+            const trimmedFallback = windowFallback.trim();
+            if (trimmedFallback && !/^<[^>]+>$/.test(trimmedFallback)) {
+                return trimmedFallback;
+            }
+        }
+        return '';
+    }
 
     // Auto-detect local development environments (e.g. Docker Compose port 8080 or Live Server port 5500)
     let defaultLocalBaseUrl = '';
@@ -14,36 +35,97 @@
         }
     }
 
-    const configuredBaseUrl = (typeof runtimeConfig.API_BASE_URL === 'string' && runtimeConfig.API_BASE_URL.trim())
-        || (typeof window !== 'undefined' && typeof window.API_BASE_URL === 'string' && window.API_BASE_URL.trim())
-        || defaultLocalBaseUrl;
+    const configuredBaseUrl = resolveConfiguredValue(
+        DEPLOYED_API_BASE_URL,
+        typeof window !== 'undefined' ? window.API_BASE_URL : ''
+    ) || defaultLocalBaseUrl;
     const API_BASE_URL = configuredBaseUrl.replace(/\/+$/, '');
 
-    // Centralized LocationIQ configuration (Synopsis §4.3)
-    const LOCATIONIQ_API_KEY = runtimeConfig.LOCATIONIQ_API_KEY || 'pk.235663a366caa807557a9a233647f569';
+    // Required LocationIQ public browser key for location autocomplete and geocoding (HTTP referrer-restricted)
+    const LOCATIONIQ_API_KEY = resolveConfiguredValue(
+        DEPLOYED_LOCATIONIQ_API_KEY,
+        typeof window !== 'undefined' ? window.LOCATIONIQ_API_KEY : ''
+    );
 
     /**
-     * Resolves a media file path or presigned S3 URL to a fully qualified URL.
-     * - Returns empty string for null/undefined/empty input safely.
-     * - Preserves already absolute URLs (http, https, data:, //) and S3 presigned URLs untouched.
-     * - Resolves relative paths against the configured API_BASE_URL (or root relative).
+     * Sanitizes a URL to block dangerous scriptable schemes (javascript:, vbscript:, data:text/html, SVG data URIs).
+     * Allows relative paths, http:, https:, blob:, and safe image/audio/video/pdf data URIs.
      */
-    function resolveMediaUrl(url) {
+    function sanitizeUrl(url) {
         if (!url) return '';
         if (typeof url === 'object') {
             url = url.url || url.preview_url || url.path || '';
         }
         if (typeof url !== 'string') return '';
-        const trimmed = url.trim();
+        // Strip control characters and leading/trailing whitespace before inspecting scheme
+        const trimmed = url.replace(/[\u0000-\u001F\u007F]/g, '').trim();
         if (!trimmed) return '';
 
-        // Preserve already absolute URLs (including http, https, protocol-relative //, and data: URIs)
-        if (/^(https?:|\/\/|data:)/i.test(trimmed)) {
-            return trimmed;
+        const colonIdx = trimmed.indexOf(':');
+        const slashIdx = trimmed.indexOf('/');
+        const qIdx = trimmed.indexOf('?');
+        const hIdx = trimmed.indexOf('#');
+        const firstDelim = [slashIdx, qIdx, hIdx].filter(i => i >= 0).reduce((a, b) => Math.min(a, b), Infinity);
+
+        // If a URI scheme is present before any path/query/hash delimiter
+        if (colonIdx > 0 && colonIdx < firstDelim) {
+            const scheme = trimmed.slice(0, colonIdx).toLowerCase();
+            if (scheme === 'http' || scheme === 'https' || scheme === 'blob') {
+                return trimmed;
+            }
+            if (scheme === 'data') {
+                // Allow only safe non-scriptable media data URIs (explicitly block data:text/html and data:image/svg+xml)
+                if (/^data:(?:image\/(?:png|jpe?g|gif|webp|bmp)|audio\/(?:mpeg|mp3|wav|ogg|webm|mp4|aac)|video\/(?:mp4|webm|ogg|quicktime)|application\/pdf)\b/i.test(trimmed)) {
+                    return trimmed;
+                }
+                return '';
+            }
+            return '';
+        }
+
+        // Reject protocol-relative redirects (//evil.com) and backslash tricks
+        if (trimmed.startsWith('//') || trimmed.startsWith('\\\\')) return '';
+        return trimmed;
+    }
+
+    /**
+     * Safely renders plain text with line breaks using Text nodes and <br> elements (no innerHTML).
+     * Pass { append: true } to preserve existing child elements before appending text.
+     */
+    function setTextWithBreaks(element, text, options) {
+        if (!element) return;
+        if (!options || !options.append) {
+            while (element.firstChild) {
+                element.removeChild(element.firstChild);
+            }
+        }
+        const value = text == null ? '' : String(text);
+        const lines = value.split(/\r\n|\r|\n/);
+        lines.forEach((line, idx) => {
+            if (idx > 0) {
+                element.appendChild(document.createElement('br'));
+            }
+            element.appendChild(document.createTextNode(line));
+        });
+    }
+
+    /**
+     * Resolves a media file path or presigned S3 URL to a fully qualified safe URL.
+     * - Returns empty string for null/undefined/empty/unsafe input safely.
+     * - Preserves already absolute URLs (http, https, blob, safe data:, //) and S3 presigned URLs.
+     * - Resolves relative paths against the configured API_BASE_URL (or root relative).
+     */
+    function resolveMediaUrl(url) {
+        const sanitized = sanitizeUrl(url);
+        if (!sanitized) return '';
+
+        // Preserve already absolute safe URLs
+        if (/^(https?:|blob:|\/\/|data:)/i.test(sanitized)) {
+            return sanitized;
         }
 
         // Relative path resolution
-        const cleanPath = trimmed.startsWith('/') ? trimmed : '/' + trimmed;
+        const cleanPath = sanitized.startsWith('/') ? sanitized : '/' + sanitized;
         return API_BASE_URL ? `${API_BASE_URL}${cleanPath}` : cleanPath;
     }
 
@@ -64,13 +146,11 @@
     window.MemoryBookConfig = {
         API_BASE_URL: API_BASE_URL,
         LOCATIONIQ_API_KEY: LOCATIONIQ_API_KEY,
+        sanitizeUrl: sanitizeUrl,
+        setTextWithBreaks: setTextWithBreaks,
         resolveMediaUrl: resolveMediaUrl,
         getCleanExtension: getCleanExtension
     };
-
-    // Backward-compatibility aliases for legacy code
-    window.MEMORYBOOK_CONFIG = window.MemoryBookConfig;
-    window.resolveMediaUrl = resolveMediaUrl;
 
     // Configure Axios defaults and interceptors if Axios is loaded
     if (typeof axios !== 'undefined') {

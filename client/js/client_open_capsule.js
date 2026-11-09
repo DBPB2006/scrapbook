@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             try {
-                const res = await axios.get('/api/capsules/' + capsuleId + '?t=' + Date.now());
+                const res = await axios.get('/api/capsules/' + encodeURIComponent(capsuleId) + '?t=' + Date.now());
                 const { capsule, otherCapsules } = res.data;
                 const isUnlocked = capsule.unlocked == 1;
 
@@ -42,39 +42,51 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('capFrom').textContent = capsule.user_email;
                 document.getElementById('capReveals').textContent = displayReveal || '-';
                 document.getElementById('capCreated').textContent = displayCreated || '-';
-                
-                document.getElementById('capMessage').innerHTML = (capsule.message || '').replace(/\n/g, '<br/>');
+
+                window.MemoryBookConfig.setTextWithBreaks(document.getElementById('capMessage'), capsule.message || '');
                 if (capsule.description) {
                     const dEl = document.getElementById('capDesc');
-                    dEl.innerHTML = capsule.description.replace(/\n/g, '<br/>');
+                    window.MemoryBookConfig.setTextWithBreaks(dEl, capsule.description);
                     dEl.classList.remove('hidden');
                 }
 
                 // Populate other capsules
                 const ocList = document.getElementById('otherCapsulesList');
+                ocList.textContent = '';
                 if (otherCapsules && otherCapsules.length > 0) {
-                    let ocHtml = '';
                     otherCapsules.forEach(oc => {
                         const ocRDate = new Date(oc.reveal_date.replace(' ', 'T') + 'Z');
                         const ocDisplayReveal = isNaN(ocRDate.getTime()) ? oc.reveal_date : `${ocRDate.getFullYear()}-${pad(ocRDate.getMonth()+1)}-${pad(ocRDate.getDate())} ${pad(ocRDate.getHours())}:${pad(ocRDate.getMinutes())}:${pad(ocRDate.getSeconds())}`;
 
-                        ocHtml += `
-                        <li class="mb-3">
-                            <a href="/capsules/open_capsule.html?id=${encodeURIComponent(oc.id)}" class="block">
-                                <div class="border rounded-lg p-3 bg-white/60 hover:bg-white transition-colors cursor-pointer border-pastel-purple">
-                                    <div class="font-semibold text-gray-700 text-sm">To: ${oc.recipient_email}</div>
-                                    <div class="text-xs text-gray-500"> ${ocDisplayReveal || '-'} </div>
-                                </div>
-                            </a>
-                        </li>`;
+                        const li = document.createElement('li');
+                        li.className = 'mb-3';
+                        const link = document.createElement('a');
+                        link.href = `/capsules/open_capsule.html?id=${encodeURIComponent(oc.id)}`;
+                        link.className = 'block';
+                        const box = document.createElement('div');
+                        box.className = 'border rounded-lg p-3 bg-white/60 hover:bg-white transition-colors cursor-pointer border-pastel-purple';
+                        const recipDiv = document.createElement('div');
+                        recipDiv.className = 'font-semibold text-gray-700 text-sm';
+                        recipDiv.textContent = `To: ${oc.recipient_email || ''}`;
+                        const dateDiv = document.createElement('div');
+                        dateDiv.className = 'text-xs text-gray-500';
+                        dateDiv.textContent = ocDisplayReveal || '-';
+                        box.appendChild(recipDiv);
+                        box.appendChild(dateDiv);
+                        link.appendChild(box);
+                        li.appendChild(link);
+                        ocList.appendChild(li);
                     });
-                    ocList.innerHTML = ocHtml;
                 } else {
-                    ocList.innerHTML = '<li class="text-gray-400 text-sm">No other capsules.</li>';
+                    const emptyLi = document.createElement('li');
+                    emptyLi.className = 'text-gray-400 text-sm';
+                    emptyLi.textContent = 'No other capsules.';
+                    ocList.appendChild(emptyLi);
                 }
 
                 // Media viewer
                 const mContainer = document.getElementById('media-viewer-container');
+                mContainer.textContent = '';
                 let mediaItems = [];
                 if (capsule.media && Array.isArray(capsule.media)) {
                     mediaItems = capsule.media;
@@ -84,36 +96,38 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (isUnlocked) {
                     if (mediaItems.length > 0) {
-                        mContainer.innerHTML = '<div id="media-content" class="w-full h-full flex items-center justify-center"></div>';
-                        const mediaContentEl = document.getElementById('media-content');
+                        const mediaContentEl = document.createElement('div');
+                        mediaContentEl.id = 'media-content';
+                        mediaContentEl.className = 'w-full h-full flex items-center justify-center';
+                        mContainer.appendChild(mediaContentEl);
                         let currentIndex = 0;
 
                         function renderMedia(index) {
                             if (!mediaItems[index]) return;
                             const item = mediaItems[index];
                             let mediaType = item.type || '';
-                            const src = window.MemoryBookConfig ? window.MemoryBookConfig.resolveMediaUrl(item.path) : (item.path && /^(https?:|\/\/|data:)/i.test(item.path) ? item.path : `/${item.path}`);
-                            
+                            const src = window.MemoryBookConfig.resolveMediaUrl(item.path);
+
                             if (!mediaType && typeof item.path === 'string') {
-                                const ext = window.MemoryBookConfig ? window.MemoryBookConfig.getCleanExtension(item.path) : item.path.split('?')[0].split('#')[0].split('.').pop().toLowerCase();
-                                if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) mediaType = 'image/jpeg';
+                                const ext = window.MemoryBookConfig.getCleanExtension(item.path);
+                                if (['jpg','jpeg','png','gif','webp'].includes(ext)) mediaType = 'image/jpeg';
                                 else if (['mp4','webm','mov','ogg'].includes(ext)) mediaType = 'video/mp4';
                                 else if (['mp3','wav','ogg','m4a','aac'].includes(ext)) mediaType = 'audio/mp3';
                             }
 
-                            mediaContentEl.innerHTML = '';
+                            mediaContentEl.textContent = '';
                             let mediaEl;
-                            
-                            if (mediaType.startsWith('image/')) {
+
+                            if (mediaType.startsWith('image/') && src) {
                                 mediaEl = document.createElement('img');
                                 mediaEl.className = 'w-full h-full object-contain';
                                 mediaEl.src = src;
-                            } else if (mediaType.startsWith('audio/')) {
+                            } else if (mediaType.startsWith('audio/') && src) {
                                 mediaEl = document.createElement('audio');
                                 mediaEl.className = 'w-3/4';
                                 mediaEl.controls = true;
                                 mediaEl.src = src;
-                            } else if (mediaType.startsWith('video/')) {
+                            } else if (mediaType.startsWith('video/') && src) {
                                 mediaEl = document.createElement('video');
                                 mediaEl.className = 'w-full h-full object-contain';
                                 mediaEl.controls = true;
@@ -121,20 +135,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                             } else {
                                 mediaEl = document.createElement('div');
                                 mediaEl.className = 'text-center text-gray-400 w-full';
-                                mediaEl.innerHTML = `Unsupported media type (${mediaType || 'unknown'})`;
+                                mediaEl.textContent = `Unsupported media type (${mediaType || 'unknown'})`;
                             }
 
                             if (mediaEl) {
                                 mediaContentEl.appendChild(mediaEl);
-                                // Add download link
-                                const dlLink = document.createElement('a');
-                                const dlUrl = item.download_url || src;
-                                dlLink.href = dlUrl;
-                                dlLink.download = item.name || '';
-                                dlLink.rel = 'noopener noreferrer';
-                                dlLink.className = 'absolute bottom-4 right-4 z-20 bg-[#8B7EC8] text-white px-4 py-2 rounded-lg shadow hover:bg-[#7A6BB5] transition flex items-center gap-2';
-                                dlLink.innerHTML = `<i class="fas fa-download"></i> Download Media`;
-                                mediaContentEl.appendChild(dlLink);
+                                const dlUrl = window.MemoryBookConfig.resolveMediaUrl(item.download_url || src);
+                                if (dlUrl) {
+                                    const dlLink = document.createElement('a');
+                                    dlLink.href = dlUrl;
+                                    dlLink.download = item.name || '';
+                                    dlLink.rel = 'noopener noreferrer';
+                                    dlLink.className = 'absolute bottom-4 right-4 z-20 bg-[#8B7EC8] text-white px-4 py-2 rounded-lg shadow hover:bg-[#7A6BB5] transition flex items-center gap-2';
+                                    const dlIcon = document.createElement('i');
+                                    dlIcon.className = 'fas fa-download';
+                                    dlLink.appendChild(dlIcon);
+                                    dlLink.appendChild(document.createTextNode(' Download Media'));
+                                    mediaContentEl.appendChild(dlLink);
+                                }
                             }
                         }
 
@@ -152,18 +170,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                         renderMedia(0);
                     } else {
-                        mContainer.innerHTML = `
-                            <div class="text-center text-gray-400 w-full">
-                                <i class="fas fa-paperclip text-5xl mb-4"></i>
-                                <p class="text-lg font-semibold">No attached media</p>
-                            </div>`;
+                        const emptyMedia = document.createElement('div');
+                        emptyMedia.className = 'text-center text-gray-400 w-full';
+                        const clipIcon = document.createElement('i');
+                        clipIcon.className = 'fas fa-paperclip text-5xl mb-4';
+                        const p = document.createElement('p');
+                        p.className = 'text-lg font-semibold';
+                        p.textContent = 'No attached media';
+                        emptyMedia.appendChild(clipIcon);
+                        emptyMedia.appendChild(p);
+                        mContainer.appendChild(emptyMedia);
                     }
                 } else {
-                    mContainer.innerHTML = `
-                        <div class="text-center text-gray-400 w-full">
-                            <i class="fas fa-lock text-5xl mb-4"></i>
-                            <p class="text-lg font-semibold">Content is Locked</p>
-                        </div>`;
+                    const lockedBox = document.createElement('div');
+                    lockedBox.className = 'text-center text-gray-400 w-full';
+                    const lockIcon = document.createElement('i');
+                    lockIcon.className = 'fas fa-lock text-5xl mb-4';
+                    const p = document.createElement('p');
+                    p.className = 'text-lg font-semibold';
+                    p.textContent = 'Content is Locked';
+                    lockedBox.appendChild(lockIcon);
+                    lockedBox.appendChild(p);
+                    mContainer.appendChild(lockedBox);
                 }
 
             } catch(e) {

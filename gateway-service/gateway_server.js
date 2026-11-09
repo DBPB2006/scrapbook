@@ -1,27 +1,32 @@
 require('dotenv').config();
-const express = require('express');
+const fs = require('fs');
 const path = require('path');
+const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { createProxyMiddleware } = require('http-proxy-middleware');
-let metrics;
-try {
-    metrics = require('./shared/metrics');
-} catch (e) {
-    metrics = require('../shared/metrics');
-}
+
+const metrics = fs.existsSync(path.join(__dirname, 'shared'))
+    ? require('./shared/metrics')
+    : require('../shared/metrics');
 
 const app = express();
+// Trust the single AWS ALB reverse proxy hop so req.ip reflects the true client IP
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3090;
 const isProduction = process.env.NODE_ENV === 'production';
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-    console.error('FATAL: JWT_SECRET environment variable is missing.');
+    console.error('FATAL: JWT_SECRET environment variable is required.');
+    process.exit(1);
+}
+const GATEWAY_SHARED_SECRET = process.env.GATEWAY_SHARED_SECRET;
+if (!GATEWAY_SHARED_SECRET) {
+    console.error('FATAL: GATEWAY_SHARED_SECRET environment variable is required.');
     process.exit(1);
 }
 
-
-// Dynamic CORS configuration (Synopsis §8.4 / §9 Table 6)
+// Dynamic CORS configuration
 const defaultAllowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3090',
@@ -47,7 +52,6 @@ const getAllowedOrigins = () => {
     if (process.env.FRONTEND_ORIGIN) {
         process.env.FRONTEND_ORIGIN.split(',').forEach(rawOrigin => {
             const normalized = normalizeOrigin(rawOrigin);
-            // Explicitly disallow wildcard origins and unreplaced placeholders
             if (!normalized || normalized.includes('*') || normalized.includes('<') || normalized.includes('>')) {
                 return;
             }
@@ -64,17 +68,12 @@ const getAllowedOrigins = () => {
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (health probes, curl, server-to-server)
         if (!origin) return callback(null, true);
         const normalizedRequestOrigin = normalizeOrigin(origin);
         if (!normalizedRequestOrigin || normalizedRequestOrigin.includes('*')) {
             return callback(null, false);
         }
-        const allowed = getAllowedOrigins();
-        if (allowed.includes(normalizedRequestOrigin)) {
-            return callback(null, true);
-        }
-        return callback(null, false);
+        return callback(null, getAllowedOrigins().includes(normalizedRequestOrigin));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -86,19 +85,15 @@ app.use(cors({
 app.use(metrics.metricsMiddleware);
 app.get('/metrics', metrics.metricsEndpoint);
 
-// Serve static pages and uploads (volume-mounted in Docker)
-app.use(express.static('pages'));
-app.use('/uploads', express.static(process.env.UPLOAD_DIR || (process.env.STORAGE_PATH ? path.join(process.env.STORAGE_PATH, 'Uploads') : path.join(__dirname, 'uploads/'))));
-
-// Security: Prevent external clients from accessing internal service endpoints
+// Prevent external clients from accessing internal service endpoints
 app.use('/api/internal', (req, res) => {
     res.status(403).json({ error: 'Access denied: Internal endpoints cannot be accessed externally.' });
 });
 
-// Rate limiting on sensitive authentication routes (Synopsis §8.4 Table 5 Scenario 7)
+// Rate limiting on authentication routes
 const authRateLimitMap = new Map();
-const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15-minute window
-const AUTH_MAX_ATTEMPTS = 15; // Max 15 attempts per 15 minutes per IP
+const AUTH_WINDOW_MS = 15 * 60 * 1000;
+const AUTH_MAX_ATTEMPTS = 15;
 
 const authRateLimiter = (req, res, next) => {
     if (req.method !== 'POST') return next();
@@ -132,10 +127,8 @@ const authRateLimiter = (req, res, next) => {
 app.use('/api/login', authRateLimiter);
 app.use('/api/signup', authRateLimiter);
 
-// Security: Identity Header Sanitization and JWT Bearer Authentication (Synopsis §9 Table 6)
-// Strips untrusted client headers, verifies JWT Bearer tokens, and injects verified identity
+// Strip client-supplied identity/secret headers, verify JWT Bearer tokens, and inject verified identity
 const sanitizeAndInjectIdentity = (req, res, next) => {
-    // 1. Remove untrusted client-supplied identity & secret headers to prevent spoofing
     delete req.headers['x-user-email'];
     delete req.headers['x-user-username'];
     delete req.headers['x-gateway-secret'];
@@ -145,15 +138,12 @@ const sanitizeAndInjectIdentity = (req, res, next) => {
     delete req.headers['x-clear-session'];
     delete req.headers['x-session-id'];
 
-    // 2. Allow CORS preflight requests without authentication
     if (req.method === 'OPTIONS') {
         return next();
     }
 
-    // 3. Mark request as verified by Gateway with shared secret for downstream microservices
-    req.headers['x-gateway-secret'] = process.env.GATEWAY_SHARED_SECRET || 'mb-gateway-service-secret-2026';
+    req.headers['x-gateway-secret'] = GATEWAY_SHARED_SECRET;
 
-    // 4. Public routes that bypass JWT verification
     const reqPath = (req.originalUrl || req.url || req.path).split('?')[0];
     const isPublicRoute = (reqPath === '/api/login' && req.method === 'POST') ||
                           (reqPath === '/api/signup' && req.method === 'POST');
@@ -162,7 +152,6 @@ const sanitizeAndInjectIdentity = (req, res, next) => {
         return next();
     }
 
-    // 5. Protected routes: Extract Bearer token from Authorization header
     const authHeader = req.headers['authorization'];
     if (!authHeader) {
         return res.status(401).json({ error: 'Unauthorized: No authorization token provided' });
@@ -178,14 +167,12 @@ const sanitizeAndInjectIdentity = (req, res, next) => {
         return res.status(401).json({ error: 'Unauthorized: Token is empty' });
     }
 
-    // 6. Verify JWT token signature and expiration
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         if (!decoded || !decoded.email) {
             return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
         }
 
-        // Inject verified identity headers for downstream microservices
         req.headers['x-user-email'] = decoded.email.trim().toLowerCase();
         req.headers['x-user-username'] = decoded.username || '';
         req.user = decoded;
@@ -200,10 +187,26 @@ const sanitizeAndInjectIdentity = (req, res, next) => {
 
 app.use('/api', sanitizeAndInjectIdentity);
 
-// Proxy configuration for downstream microservices
 const proxyOptions = (target) => ({
     target,
-    changeOrigin: true
+    changeOrigin: true,
+    onProxyReq: (proxyReq, req) => {
+        if (req.headers['x-gateway-secret']) {
+            proxyReq.setHeader('x-gateway-secret', req.headers['x-gateway-secret']);
+        }
+        if (req.headers['x-user-email']) {
+            proxyReq.setHeader('x-user-email', req.headers['x-user-email']);
+        }
+        if (req.headers['x-user-username'] !== undefined) {
+            proxyReq.setHeader('x-user-username', req.headers['x-user-username']);
+        }
+    },
+    onError: (err, req, res) => {
+        console.error(`Gateway Proxy Error (${target}):`, err.message);
+        if (!res.headersSent) {
+            res.status(502).json({ error: 'Upstream service unavailable' });
+        }
+    }
 });
 
 // Auth & Users Service
@@ -223,6 +226,7 @@ app.use('/api/memories', createProxyMiddleware(proxyOptions(memoriesServiceUrl))
 const socialServiceUrl = process.env.SOCIAL_SERVICE_URL || 'http://social-service:3003';
 app.use('/api/friends', createProxyMiddleware(proxyOptions(socialServiceUrl)));
 app.use('/api/friendship_graph', createProxyMiddleware(proxyOptions(socialServiceUrl)));
+app.use('/api/social/adjacency_list', createProxyMiddleware(proxyOptions(socialServiceUrl)));
 
 // Sharing Service
 const sharingServiceUrl = process.env.SHARING_SERVICE_URL || 'http://sharing-service:3004';
@@ -233,24 +237,33 @@ app.get('/health', (req, res) => {
     res.json({ status: 'UP', service: 'gateway-service' });
 });
 
-// Generic safe error handler preventing information leakage
 app.use((err, req, res, next) => {
-    console.error('Unhandled Gateway Error:', err);
-    res.status(500).json({
-        error: isProduction ? 'Internal Server Error' : (err.message || 'Internal Server Error')
-    });
+    console.error('Unhandled Gateway Error:', err.message);
+    res.status(500).json({ error: isProduction ? 'Internal Server Error' : (err.message || 'Internal Server Error') });
 });
 
-const server = app.listen(PORT, () => {
-    console.log(`API Gateway running at http://localhost:${PORT}`);
-});
+let server = null;
 
-const shutdown = () => {
-    console.log('Shutting down gracefully...');
-    server.close(() => {
-        console.log('Closed out remaining connections');
-        process.exit(0);
+function startServer() {
+    server = app.listen(PORT, () => {
+        console.log(`API Gateway running at http://localhost:${PORT}`);
     });
-};
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+
+    const shutdown = () => {
+        console.log('Shutting down gracefully...');
+        server.close(() => {
+            console.log('Closed out remaining connections');
+            process.exit(0);
+        });
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+
+    return server;
+}
+
+if (require.main === module) {
+    startServer();
+}
+
+module.exports = { app, startServer };

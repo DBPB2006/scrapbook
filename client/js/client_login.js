@@ -90,8 +90,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     if (response.data.success) {
                         showMessage('success', 'Login successful! Redirecting...');
+                        const nextRedirect = (typeof response.data.redirect === 'string' && /^\/[^/]/.test(response.data.redirect))
+                            ? response.data.redirect
+                            : '/dashboard.html';
                         setTimeout(() => {
-                            window.location.href = response.data.redirect || '/dashboard.html';
+                            window.location.href = nextRedirect;
                         }, 1000);
                     }
                 } catch (error) {

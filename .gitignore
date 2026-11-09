@@ -14,12 +14,11 @@ secrets/
 credentials/
 
 # Local storage, uploads & data
-uploads/
-**/uploads/
-storage/
-**/storage/
-data/
-**/data/
+/uploads/
+/storage/
+/data/
+*-service/uploads/
+*-service/data/
 
 # Logs & debugging
 logs/
@@ -46,6 +45,7 @@ coverage/
 *.tfstate
 *.tfstate.*
 *.tfstate.backup
+.terraform.tfstate.lock.info
 *.tfplan
 *.tfplan.*
 crash.log
@@ -53,13 +53,13 @@ crash.*.log
 *.tfvars
 *.tfvars.json
 !*.tfvars.example
-backend.hcl
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
 .terraformrc
 terraform.rc
+
 
 # OS & Editor files
 .DS_Store

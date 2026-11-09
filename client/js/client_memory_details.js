@@ -47,16 +47,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     // Populate side timeline
                     const timeline = document.getElementById('timelineContainer');
+                    timeline.textContent = '';
                     const colors = ['#2563eb', '#14b8a6', '#f59e42', '#ec4899', '#22c55e', '#eab308', '#ef4444'];
-                    let tHtml = '';
-                    data.allUserMemories.forEach((m, idx) => {
+                    (data.allUserMemories || []).forEach((m, idx) => {
                         const isActive = m.id === memoryId;
                         const isNavigable = m.id === data.prevMemoryId || m.id === data.nextMemoryId;
                         const color = colors[idx % colors.length];
                         const initials = (m.title || 'M').split(/\s+/).map(w=>w[0]).join('').substring(0,2).toUpperCase();
                         
-                        let style = `background: #A8C8EC; color: #fff; border: 4px solid #A8C8EC;`;
-                        let classes = `flex items-center justify-center w-16 h-16 rounded-full font-bold text-lg transition-all duration-200`;
+                        let style = 'background: #A8C8EC; color: #fff; border: 4px solid #A8C8EC;';
+                        let classes = 'flex items-center justify-center w-16 h-16 rounded-full font-bold text-lg transition-all duration-200';
                         
                         if (isActive) {
                             style = `background: ${color}; color: #fff; border: 4px solid #A8C8EC; pointer-events: none; box-shadow: 0 0 0 4px #fff, 0 4px 16px rgba(139,126,200,0.12);`;
@@ -65,9 +65,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                         } else {
                             classes += ' opacity-40 pointer-events-none cursor-default';
                         }
-                        tHtml += `<a href="${isNavigable ? '/memories/memory_details.html?id=' + encodeURIComponent(m.id) + '&order=' + currentOrder : '#'}" class="${classes}" style="${style}" title="${m.title}">${initials}</a>`;
+
+                        const a = document.createElement('a');
+                        a.href = isNavigable ? `/memories/memory_details.html?id=${encodeURIComponent(m.id)}&order=${currentOrder}` : '#';
+                        a.className = classes;
+                        a.setAttribute('style', style);
+                        a.title = m.title || '';
+                        a.textContent = initials;
+                        timeline.appendChild(a);
                     });
-                    timeline.innerHTML = tHtml;
 
                     const prevLink = document.getElementById('prevLink');
                     if (data.prevMemoryId) {
@@ -88,7 +94,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
 
                     // Populate details
-                    document.title = mem.title + ' - MemoryBook';
+                    document.title = (mem.title || 'Memory') + ' - MemoryBook';
                     document.getElementById('memTitle').textContent = mem.title;
                     document.getElementById('memDate').querySelector('span').textContent = mem.date;
                     if (mem.mood) {
@@ -105,18 +111,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } else {
                         document.getElementById('memLocation').classList.add('hidden');
                     }
-                    document.getElementById('memDesc').innerHTML = (mem.description || '').replace(/\n/g, '<br/>');
+                    window.MemoryBookConfig.setTextWithBreaks(document.getElementById('memDesc'), mem.description || '');
 
+                    const memTagsEl = document.getElementById('memTags');
+                    memTagsEl.textContent = '';
                     if (mem.tags) {
                         const tagsArr = typeof mem.tags === 'string' ? mem.tags.split(',') : mem.tags;
                         if (tagsArr.length > 0) {
-                            document.getElementById('memTags').classList.remove('hidden');
-                            document.getElementById('memTags').innerHTML = tagsArr.map(t => `<span class="inline-block px-3 py-1 rounded-full bg-[#A8C8EC] text-white text-xs font-medium">#${t.trim()}</span>`).join('');
+                            memTagsEl.classList.remove('hidden');
+                            tagsArr.forEach(t => {
+                                const tagSpan = document.createElement('span');
+                                tagSpan.className = 'inline-block px-3 py-1 rounded-full bg-[#A8C8EC] text-white text-xs font-medium';
+                                tagSpan.textContent = `#${String(t).trim()}`;
+                                memTagsEl.appendChild(tagSpan);
+                            });
                         } else {
-                            document.getElementById('memTags').classList.add('hidden');
+                            memTagsEl.classList.add('hidden');
                         }
                     } else {
-                        document.getElementById('memTags').classList.add('hidden');
+                        memTagsEl.classList.add('hidden');
                     }
 
                     // Friends
@@ -132,15 +145,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     // Media Gallery
                     const gallery = document.getElementById('mediaGallery');
+                    gallery.textContent = '';
                     if (mem.media && mem.media.length > 0) {
                         slidesCount = mem.media.length;
                         currentSlide = 0;
-                        let gHtml = '';
                         (mem.media || []).forEach((file, idx) => {
-                            const disp = idx === 0 ? '' : 'display:none;';
+                            const slideDiv = document.createElement('div');
+                            slideDiv.className = 'media-slide w-full flex flex-col items-center';
+                            if (idx !== 0) slideDiv.style.display = 'none';
+
                             const rawUrl = typeof file === 'string' ? file : (file.url || '');
-                            const fUrl = window.MemoryBookConfig ? window.MemoryBookConfig.resolveMediaUrl(rawUrl) : rawUrl;
-                            const ext = window.MemoryBookConfig ? window.MemoryBookConfig.getCleanExtension(fUrl) : fUrl.split('?')[0].split('#')[0].split('.').pop().toLowerCase();
+                            const fUrl = window.MemoryBookConfig.resolveMediaUrl(rawUrl);
+                            const ext = window.MemoryBookConfig.getCleanExtension(fUrl);
                             let fType = '';
                             if (typeof file === 'object' && file.type) {
                                 fType = file.type;
@@ -151,24 +167,56 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 else fType = 'image/jpeg';
                             }
 
-                            let inner = '';
-                            if (fType.startsWith('image/')) {
-                                inner = `<img src="${fUrl}" class="gallery-img w-full max-w-lg h-auto max-h-[400px] object-contain rounded-xl shadow border-2 border-[#8B7EC8] bg-white mb-2" />`;
-                            } else if (fType.startsWith('video/')) {
-                                inner = `<video src="${fUrl}" controls class="w-full max-w-lg h-auto max-h-[400px] rounded-xl shadow border-2 border-[#8B7EC8] bg-black mb-2" type="${fType}"></video>`;
-                            } else if (fType.startsWith('audio/')) {
-                                inner = `<audio src="${fUrl}" controls class="w-full max-w-lg mb-2" type="${fType}"></audio>`;
+                            if (fType.startsWith('image/') && fUrl) {
+                                const imgEl = document.createElement('img');
+                                imgEl.src = fUrl;
+                                imgEl.className = 'gallery-img w-full max-w-lg h-auto max-h-[400px] object-contain rounded-xl shadow border-2 border-[#8B7EC8] bg-white mb-2';
+                                slideDiv.appendChild(imgEl);
+                            } else if (fType.startsWith('video/') && fUrl) {
+                                const vidEl = document.createElement('video');
+                                vidEl.src = fUrl;
+                                vidEl.controls = true;
+                                vidEl.className = 'w-full max-w-lg h-auto max-h-[400px] rounded-xl shadow border-2 border-[#8B7EC8] bg-black mb-2';
+                                vidEl.setAttribute('type', fType);
+                                slideDiv.appendChild(vidEl);
+                            } else if (fType.startsWith('audio/') && fUrl) {
+                                const audEl = document.createElement('audio');
+                                audEl.src = fUrl;
+                                audEl.controls = true;
+                                audEl.className = 'w-full max-w-lg mb-2';
+                                audEl.setAttribute('type', fType);
+                                slideDiv.appendChild(audEl);
                             } else {
-                                let fileName = typeof file === 'string' ? file.split('?')[0].split('/').pop() : (file.name || 'File');
-                                inner = `<div class="w-full flex flex-col items-center justify-center h-32 bg-[#F5F3FB] rounded-xl border border-[#E8E3F5] mb-2"><i class="fa fa-file-alt text-4xl text-[#8B7EC8]"></i><span class="ml-2 text-sm">${fileName}</span></div>`;
+                                const fileName = typeof file === 'string' ? file.split('?')[0].split('/').pop() : (file.name || 'File');
+                                const box = document.createElement('div');
+                                box.className = 'w-full flex flex-col items-center justify-center h-32 bg-[#F5F3FB] rounded-xl border border-[#E8E3F5] mb-2';
+                                const icon = document.createElement('i');
+                                icon.className = 'fa fa-file-alt text-4xl text-[#8B7EC8]';
+                                const span = document.createElement('span');
+                                span.className = 'ml-2 text-sm';
+                                span.textContent = fileName;
+                                box.appendChild(icon);
+                                box.appendChild(span);
+                                slideDiv.appendChild(box);
                             }
-                            
-                            const dlUrl = (typeof file === 'object' && file.download_url) ? file.download_url : fUrl;
+
+                            const rawDlUrl = (typeof file === 'object' && file.download_url) ? window.MemoryBookConfig.resolveMediaUrl(file.download_url) : fUrl;
                             const dlName = (typeof file === 'object' && (file.name || file.fileName)) || (typeof file === 'string' ? file.split('?')[0].split('/').pop() : 'download');
-                            const dl = `<a href="${dlUrl}" download="${dlName}" class="inline-flex px-3 py-1 bg-[#8B7EC8] text-white rounded-md text-xs font-semibold hover:bg-[#6BCB77] transition items-center gap-2"><i class="fa fa-download"></i> Download</a>`;
-                            gHtml += `<div class="media-slide w-full flex flex-col items-center" style="${disp}">${inner}${dl}</div>`;
+                            if (rawDlUrl) {
+                                const dlLink = document.createElement('a');
+                                dlLink.href = rawDlUrl;
+                                dlLink.download = dlName;
+                                dlLink.rel = 'noopener noreferrer';
+                                dlLink.className = 'inline-flex px-3 py-1 bg-[#8B7EC8] text-white rounded-md text-xs font-semibold hover:bg-[#6BCB77] transition items-center gap-2';
+                                const dlIcon = document.createElement('i');
+                                dlIcon.className = 'fa fa-download';
+                                dlLink.appendChild(dlIcon);
+                                dlLink.appendChild(document.createTextNode(' Download'));
+                                slideDiv.appendChild(dlLink);
+                            }
+
+                            gallery.appendChild(slideDiv);
                         });
-                        gallery.innerHTML = gHtml;
                         if (slidesCount > 1) {
                             document.getElementById('galleryControls').classList.remove('hidden');
                             document.getElementById('prevSlide').onclick = () => {
@@ -183,23 +231,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                             document.getElementById('galleryControls').classList.add('hidden');
                         }
                     } else {
-                        gallery.innerHTML = '<div class="text-center text-gray-400">No media files.</div>';
+                        const emptyGallery = document.createElement('div');
+                        emptyGallery.className = 'text-center text-gray-400';
+                        emptyGallery.textContent = 'No media files.';
+                        gallery.appendChild(emptyGallery);
                         document.getElementById('galleryControls').classList.add('hidden');
                     }
 
                     // Extra details
-                    let extraHtml = '';
+                    const extraContainer = document.getElementById('extraDetails');
+                    extraContainer.textContent = '';
                     const skips = ['memory_id', 'id', 'owner', 'media', 'friends', 'title', 'date', 'location', 'description', 'tags', 'mood'];
                     for (const [key, val] of Object.entries(mem)) {
                         if (skips.includes(key)) continue;
-                        const disp = Array.isArray(val) ? val.join(', ') : (val === '' || val == null ? '—' : val);
-                        extraHtml += `
-                        <div class="flex justify-between items-center py-2">
-                            <dt class="font-medium text-gray-600 capitalize">${key.replace(/_/g, ' ')}</dt>
-                            <dd class="text-gray-800 text-right">${disp}</dd>
-                        </div>`;
+                        const disp = Array.isArray(val) ? val.join(', ') : (val === '' || val == null ? '—' : String(val));
+                        const row = document.createElement('div');
+                        row.className = 'flex justify-between items-center py-2';
+                        const dt = document.createElement('dt');
+                        dt.className = 'font-medium text-gray-600 capitalize';
+                        dt.textContent = key.replace(/_/g, ' ');
+                        const dd = document.createElement('dd');
+                        dd.className = 'text-gray-800 text-right';
+                        dd.textContent = disp;
+                        row.appendChild(dt);
+                        row.appendChild(dd);
+                        extraContainer.appendChild(row);
                     }
-                    document.getElementById('extraDetails').innerHTML = extraHtml;
 
                     // Configure Edit Modal with current data
                     setupEditModal(mem);
@@ -295,7 +352,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('deleteBtn').addEventListener('click', async () => {
                 if (confirm('Are you sure you want to delete this memory? This cannot be undone.')) {
                     try {
-                        const delRes = await axios.delete('/api/memories/' + memoryId);
+                        const delRes = await axios.delete('/api/memories/' + encodeURIComponent(memoryId));
                         if (delRes.data.redirectId) {
                             window.location.href = `/memories/memory_details.html?id=${encodeURIComponent(delRes.data.redirectId)}&order=${currentOrder}`;
                         } else {

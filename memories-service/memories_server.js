@@ -1,36 +1,27 @@
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 
-// Resolve shared MongoDB module safely across container, root, and service execution contexts
-let mongodb = null;
-try {
-    mongodb = require('./shared/mongodb');
-} catch (e1) {
-    try {
-        mongodb = require('../shared/mongodb');
-    } catch (e2) {
-        try {
-            mongodb = require('../../shared/mongodb');
-        } catch (e3) {
-            mongodb = null;
-        }
-    }
-}
-
-let s3Module, metrics;
-try {
-    s3Module = require('./shared/s3_storage');
-} catch (e) {
-    s3Module = require('../shared/s3_storage');
-}
-try {
-    metrics = require('./shared/metrics');
-} catch (e) {
-    metrics = require('../shared/metrics');
-}
-const { S3Storage, getMediaUrl, getDownloadUrl } = s3Module;
+const hasLocalShared = fs.existsSync(path.join(__dirname, 'shared'));
+const mongodb = hasLocalShared ? require('./shared/mongodb') : require('../shared/mongodb');
+const {
+    getMediaUrl,
+    getDownloadUrl,
+    createUploadMiddleware,
+    handleUploadError,
+    extractS3Keys
+} = hasLocalShared ? require('./shared/s3_storage') : require('../shared/s3_storage');
+const metrics = hasLocalShared ? require('./shared/metrics') : require('../shared/metrics');
+const {
+    normalizeEmail,
+    createIsAuthenticated,
+    createIsInternalService,
+    registerHealthRoutes,
+    createServiceStarter
+} = hasLocalShared ? require('./shared/service_common') : require('../shared/service_common');
 
 const memoryStore = require('./src/memory_store');
 
@@ -38,8 +29,16 @@ const app = express();
 const PORT = process.env.PORT || 3002;
 const isProduction = process.env.NODE_ENV === 'production';
 
-const INTERNAL_SECRET = process.env.INTERNAL_SERVICE_SECRET || 'mb-internal-service-secret-2026';
-const GATEWAY_SECRET = process.env.GATEWAY_SHARED_SECRET || 'mb-gateway-service-secret-2026';
+const INTERNAL_SECRET = process.env.INTERNAL_SERVICE_SECRET;
+if (!INTERNAL_SECRET) {
+    console.error('FATAL: INTERNAL_SERVICE_SECRET environment variable is required.');
+    process.exit(1);
+}
+const GATEWAY_SECRET = process.env.GATEWAY_SHARED_SECRET;
+if (!GATEWAY_SECRET) {
+    console.error('FATAL: GATEWAY_SHARED_SECRET environment variable is required.');
+    process.exit(1);
+}
 
 app.use(cors());
 app.use(express.json());
@@ -48,68 +47,87 @@ app.use(express.urlencoded({ extended: true }));
 app.use(metrics.metricsMiddleware);
 app.get('/metrics', metrics.metricsEndpoint);
 
-const storage = new S3Storage({ bucket: process.env.AWS_S3_BUCKET || 'default-bucket', prefix: 'memories/' });
-const upload = multer({ storage: storage });
+const uploadMemoryMedia = createUploadMiddleware(multer, {
+    bucket: process.env.AWS_S3_BUCKET || 'default-bucket',
+    prefix: 'memories/',
+    category: 'media',
+    fieldName: 'memory_media[]',
+    multiple: true
+});
 
-// Security: Verify identity propagated from Gateway or internal service
-const isAuthenticated = (req, res, next) => {
-    const email = req.headers['x-user-email'];
-    const gwHeader = req.headers['x-gateway-secret'];
-    const intHeader = req.headers['x-internal-secret'];
+const isAuthenticated = createIsAuthenticated(GATEWAY_SECRET, INTERNAL_SECRET, isProduction);
+const isInternalService = createIsInternalService(INTERNAL_SECRET);
 
-    if (!email || (isProduction && gwHeader !== GATEWAY_SECRET && intHeader !== INTERNAL_SECRET)) {
-        return res.status(401).json({ error: 'Unauthorized: Valid authenticated session required' });
+async function presignMemoryMediaList(media) {
+    if (!Array.isArray(media)) return media;
+    return Promise.all(media.map(async mediaItem => {
+        if (mediaItem && mediaItem.url && typeof mediaItem.url === 'object' && mediaItem.url.provider === 's3') {
+            const rawUrlObj = mediaItem.url;
+            const fileName = mediaItem.name || rawUrlObj.fileName || '';
+            const previewUrl = await getMediaUrl(rawUrlObj);
+            const downloadUrl = await getDownloadUrl(rawUrlObj, fileName);
+            return {
+                ...mediaItem,
+                url: previewUrl,
+                download_url: downloadUrl || previewUrl,
+                name: fileName || mediaItem.name
+            };
+        }
+        return mediaItem;
+    }));
+}
+
+async function formatMemoryResponse(memory, includeRawMedia = false) {
+    const mCopy = { ...memory };
+    delete mCopy._id;
+    if (includeRawMedia) {
+        mCopy.raw_media = memory.media ? JSON.parse(JSON.stringify(memory.media)) : [];
     }
-    req.userEmail = email.trim().toLowerCase();
-    next();
-};
-
-// Security: Enforce internal service authorization
-const isInternalService = (req, res, next) => {
-    const secret = req.headers['x-internal-secret'];
-    if (!secret || secret !== INTERNAL_SECRET) {
-        return res.status(403).json({ error: 'Access denied: Internal service authorization required.' });
+    if (Array.isArray(mCopy.media)) {
+        mCopy.media = await presignMemoryMediaList(mCopy.media);
     }
-    next();
-};
+    return mCopy;
+}
+
+function mapUploadedMediaFiles(files) {
+    if (!Array.isArray(files) || files.length === 0) return [];
+    return files.map(file => {
+        if (file.provider === 's3') {
+            return {
+                url: { provider: 's3', key: file.key, mimeType: file.mimeType, fileName: file.fileName, size: file.size },
+                type: file.mimeType,
+                name: file.fileName
+            };
+        }
+        return {
+            url: 'uploads/' + file.filename,
+            type: file.mimetype,
+            name: file.originalname
+        };
+    });
+}
+
+function parseFriendsParam(rawFriends) {
+    if (!rawFriends) return [];
+    try {
+        return typeof rawFriends === 'string' ? JSON.parse(rawFriends) : rawFriends;
+    } catch (_) {
+        return Array.isArray(rawFriends) ? rawFriends : [rawFriends];
+    }
+}
 
 // GET /api/memories - Chronologically sorted and paginated user memories
 app.get('/api/memories', isAuthenticated, async (req, res) => {
     try {
-        const currentEmail = req.userEmail;
         const order = (req.query.order || req.query.sort || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
-        const userMemories = await memoryStore.get_user_memories(currentEmail);
-
-        const sortedMemories = memoryStore.sortMemoriesChronologically(userMemories, order);
-        const paginated = memoryStore.paginateMemories(sortedMemories, req.query.page, req.query.limit);
-
-        const mapped = await Promise.all(paginated.memories.map(async m => {
-            const mCopy = { ...m };
-            delete mCopy._id;
-            if (mCopy.media && Array.isArray(mCopy.media)) {
-                mCopy.media = await Promise.all(mCopy.media.map(async mediaItem => {
-                    if (mediaItem && mediaItem.url && typeof mediaItem.url === 'object' && mediaItem.url.provider === 's3') {
-                        const rawUrlObj = mediaItem.url;
-                        const fileName = mediaItem.name || rawUrlObj.fileName || '';
-                        const previewUrl = await getMediaUrl(rawUrlObj);
-                        const downloadUrl = await getDownloadUrl(rawUrlObj, fileName);
-                        return {
-                            ...mediaItem,
-                            url: previewUrl,
-                            download_url: downloadUrl || previewUrl,
-                            name: fileName || mediaItem.name
-                        };
-                    }
-                    return mediaItem;
-                }));
-            }
-            return mCopy;
-        }));
-
-        res.json({
-            memories: mapped,
-            pagination: paginated.pagination
+        const paginated = await memoryStore.get_user_memories_paginated(req.userEmail, {
+            order,
+            page: req.query.page,
+            limit: req.query.limit
         });
+        const memories = await Promise.all(paginated.memories.map(m => formatMemoryResponse(m)));
+
+        res.json({ memories, pagination: paginated.pagination });
     } catch (err) {
         console.error('Get memories error:', err.message);
         res.status(500).json({ error: 'Database service unavailable' });
@@ -119,32 +137,13 @@ app.get('/api/memories', isAuthenticated, async (req, res) => {
 // Internal endpoint protected with internal service authorization
 app.get('/api/internal/memories', isInternalService, async (req, res) => {
     try {
+        const ownerParam = typeof req.query.owner === 'string' ? req.query.owner.trim() : '';
         const order = (req.query.order || req.query.sort || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
-        const allMemories = await memoryStore.load_all_memories();
-        const sorted = memoryStore.sortMemoriesChronologically(allMemories, order);
-        const mapped = await Promise.all(sorted.map(async m => {
-            const mCopy = { ...m };
-            delete mCopy._id;
-            mCopy.raw_media = m.media ? JSON.parse(JSON.stringify(m.media)) : [];
-            if (mCopy.media && Array.isArray(mCopy.media)) {
-                mCopy.media = await Promise.all(mCopy.media.map(async mediaItem => {
-                    if (mediaItem && mediaItem.url && typeof mediaItem.url === 'object' && mediaItem.url.provider === 's3') {
-                        const rawUrlObj = mediaItem.url;
-                        const fileName = mediaItem.name || rawUrlObj.fileName || '';
-                        const previewUrl = await getMediaUrl(rawUrlObj);
-                        const downloadUrl = await getDownloadUrl(rawUrlObj, fileName);
-                        return {
-                            ...mediaItem,
-                            url: previewUrl,
-                            download_url: downloadUrl || previewUrl,
-                            name: fileName || mediaItem.name
-                        };
-                    }
-                    return mediaItem;
-                }));
-            }
-            return mCopy;
-        }));
+        const rawMemories = ownerParam
+            ? await memoryStore.get_user_memories(ownerParam)
+            : await memoryStore.load_all_memories();
+        const sorted = memoryStore.sortMemoriesChronologically(rawMemories, order);
+        const mapped = await Promise.all(sorted.map(m => formatMemoryResponse(m, true)));
         res.json(mapped);
     } catch (err) {
         console.error('Internal memories error:', err.message);
@@ -155,87 +154,86 @@ app.get('/api/internal/memories', isInternalService, async (req, res) => {
 // GET /api/internal/memories/:id - Retrieve specific raw memory for internal service consumption (e.g. sharing)
 app.get('/api/internal/memories/:id', isInternalService, async (req, res) => {
     try {
-        const memoryId = req.params.id;
-        const memory = await memoryStore.get_memory_by_id(memoryId);
+        const memory = await memoryStore.get_memory_by_id(req.params.id);
         if (!memory) {
             return res.status(404).json({ error: 'Memory not found' });
         }
-        const mCopy = { ...memory };
-        delete mCopy._id;
-        mCopy.raw_media = memory.media ? JSON.parse(JSON.stringify(memory.media)) : [];
-        if (mCopy.media && Array.isArray(mCopy.media)) {
-            mCopy.media = await Promise.all(mCopy.media.map(async mediaItem => {
-                if (mediaItem && mediaItem.url && typeof mediaItem.url === 'object' && mediaItem.url.provider === 's3') {
-                    const rawUrlObj = mediaItem.url;
-                    const fileName = mediaItem.name || rawUrlObj.fileName || '';
-                    const previewUrl = await getMediaUrl(rawUrlObj);
-                    const downloadUrl = await getDownloadUrl(rawUrlObj, fileName);
-                    return {
-                        ...mediaItem,
-                        url: previewUrl,
-                        download_url: downloadUrl || previewUrl,
-                        name: fileName || mediaItem.name
-                    };
-                }
-                return mediaItem;
-            }));
-        }
-        res.json(mCopy);
+        res.json(await formatMemoryResponse(memory, true));
     } catch (err) {
         console.error('Internal get memory by ID error:', err.message);
         res.status(500).json({ error: 'Database service unavailable' });
     }
 });
 
+// POST /api/internal/memories/cleanup_user - Remove owned memories and friend references for deleted user
+app.post('/api/internal/memories/cleanup_user', isInternalService, async (req, res) => {
+    try {
+        const email = normalizeEmail(req.body && req.body.email);
+        if (!email) {
+            return res.status(400).json({ error: 'Valid email is required.' });
+        }
+        const result = await memoryStore.cleanup_user_data(email);
+        const s3Keys = extractS3Keys(result.deletedMemories);
+        res.json({
+            success: true,
+            deletedCount: result.deletedCount,
+            modifiedFriendRefsCount: result.modifiedFriendRefsCount,
+            deletedMemories: result.deletedMemories,
+            modifiedMemories: result.modifiedMemories,
+            s3Keys
+        });
+    } catch (err) {
+        console.error('Internal memories cleanup error:', err.message);
+        res.status(500).json({ error: 'Database service unavailable' });
+    }
+});
+
+// POST /api/internal/memories/restore_cleanup - Compensating rollback for failed account deletion
+app.post('/api/internal/memories/restore_cleanup', isInternalService, async (req, res) => {
+    try {
+        await memoryStore.restore_user_cleanup(req.body || {});
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Internal memories restore error:', err.message);
+        res.status(500).json({ error: 'Database service unavailable' });
+    }
+});
+
+// POST /api/internal/memories/update_email - Propagate email change across memories
+app.post('/api/internal/memories/update_email', isInternalService, async (req, res) => {
+    try {
+        const oldEmail = normalizeEmail(req.body && req.body.oldEmail);
+        const newEmail = normalizeEmail(req.body && req.body.newEmail);
+        if (!oldEmail || !newEmail) {
+            return res.status(400).json({ error: 'Both oldEmail and newEmail are required.' });
+        }
+        const result = await memoryStore.update_user_email(oldEmail, newEmail);
+        res.json({ success: true, ...result });
+    } catch (err) {
+        console.error('Internal memories update_email error:', err.message);
+        res.status(500).json({ error: 'Database service unavailable' });
+    }
+});
+
 // POST /api/memories - Create a new memory
-app.post('/api/memories', isAuthenticated, upload.array('memory_media[]', 10), async (req, res) => {
+app.post('/api/memories', isAuthenticated, uploadMemoryMedia, async (req, res) => {
     try {
         const { title, date, mood, location, description, tags } = req.body;
-        const friends = req.body.friends || req.body.selected_friends;
-        const currentEmail = req.userEmail;
-
         if (!title || !date) {
             return res.status(400).json({ error: 'Title and Date are required.' });
         }
 
-        let parsedFriends = [];
-        if (friends) {
-            try {
-                parsedFriends = typeof friends === 'string' ? JSON.parse(friends) : friends;
-            } catch (e) {
-                parsedFriends = Array.isArray(friends) ? friends : [friends];
-            }
-        }
-
-        let mediaPaths = [];
-        if (req.files && req.files.length > 0) {
-            mediaPaths = req.files.map(file => {
-                if (file.provider === 's3') {
-                    return {
-                        url: { provider: 's3', key: file.key, mimeType: file.mimeType, fileName: file.fileName, size: file.size },
-                        type: file.mimeType,
-                        name: file.fileName
-                    };
-                }
-                return {
-                    url: 'uploads/' + file.filename,
-                    type: file.mimetype,
-                    name: file.originalname
-                };
-            });
-        }
-
         const newMemory = {
             memory_id: 'm_' + Math.random().toString(36).substr(2, 9),
-            owner: currentEmail,
+            owner: req.userEmail,
             title: title.trim(),
             date: date.trim(),
             mood: mood || '',
             location: location || '',
             description: description || '',
             tags: tags || '',
-            friends: parsedFriends,
-            media: mediaPaths,
+            friends: parseFriendsParam(req.body.friends || req.body.selected_friends),
+            media: mapUploadedMediaFiles(req.files),
             created_at: new Date().toISOString()
         };
 
@@ -256,47 +254,26 @@ app.get('/api/memories/:id', isAuthenticated, async (req, res) => {
         const memoryId = req.params.id;
         const order = (req.query.order || req.query.sort || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
 
-        const userMemories = await memoryStore.get_user_memories(currentEmail);
-        const sortedUserMemories = memoryStore.sortMemoriesChronologically(userMemories, order);
-        const memory = sortedUserMemories.find(m => m.memory_id === memoryId);
-
-        if (memory) {
-            const memIndex = sortedUserMemories.findIndex(m => m.memory_id === memoryId);
-            const prevMemoryId = memIndex > 0 ? sortedUserMemories[memIndex - 1].memory_id : null;
-            const nextMemoryId = memIndex >= 0 && memIndex < sortedUserMemories.length - 1 ? sortedUserMemories[memIndex + 1].memory_id : null;
-
-            const mappedMemories = sortedUserMemories.map(m => ({ id: m.memory_id, title: m.title, date: m.date }));
-
-            const memoryCopy = { ...memory };
-            delete memoryCopy._id;
-            if (memoryCopy.media && Array.isArray(memoryCopy.media)) {
-                memoryCopy.media = await Promise.all(memoryCopy.media.map(async mediaItem => {
-                    if (mediaItem && mediaItem.url && typeof mediaItem.url === 'object' && mediaItem.url.provider === 's3') {
-                        const rawUrlObj = mediaItem.url;
-                        const fileName = mediaItem.name || rawUrlObj.fileName || '';
-                        const previewUrl = await getMediaUrl(rawUrlObj);
-                        const downloadUrl = await getDownloadUrl(rawUrlObj, fileName);
-                        return {
-                            ...mediaItem,
-                            url: previewUrl,
-                            download_url: downloadUrl || previewUrl,
-                            name: fileName || mediaItem.name
-                        };
-                    }
-                    return mediaItem;
-                }));
-            }
-
-            res.json({
-                memory: memoryCopy,
-                allUserMemories: mappedMemories,
-                prevMemoryId,
-                nextMemoryId,
-                order
-            });
-        } else {
-            res.status(404).json({ error: 'Memory not found' });
+        const memory = await memoryStore.get_memory_by_id(memoryId);
+        if (!memory || normalizeEmail(memory.owner) !== currentEmail) {
+            return res.status(404).json({ error: 'Memory not found' });
         }
+
+        const sortedUserMemories = await memoryStore.get_user_memory_nav_list(currentEmail, order);
+        const memIndex = sortedUserMemories.findIndex(m => m.memory_id === memoryId);
+        const prevMemoryId = memIndex > 0 ? sortedUserMemories[memIndex - 1].memory_id : null;
+        const nextMemoryId = memIndex >= 0 && memIndex < sortedUserMemories.length - 1 ? sortedUserMemories[memIndex + 1].memory_id : null;
+
+        const mappedMemories = sortedUserMemories.map(m => ({ id: m.memory_id, title: m.title, date: m.date }));
+        const memoryCopy = await formatMemoryResponse(memory);
+
+        res.json({
+            memory: memoryCopy,
+            allUserMemories: mappedMemories,
+            prevMemoryId,
+            nextMemoryId,
+            order
+        });
     } catch (err) {
         console.error('Get memory by ID error:', err.message);
         res.status(500).json({ error: 'Database service unavailable' });
@@ -304,7 +281,7 @@ app.get('/api/memories/:id', isAuthenticated, async (req, res) => {
 });
 
 // PUT /api/memories/:id - Edit an existing memory (owner only)
-app.put('/api/memories/:id', isAuthenticated, upload.array('memory_media[]', 10), async (req, res) => {
+app.put('/api/memories/:id', isAuthenticated, uploadMemoryMedia, async (req, res) => {
     try {
         const currentEmail = req.userEmail;
         const memoryId = req.params.id;
@@ -313,13 +290,11 @@ app.put('/api/memories/:id', isAuthenticated, upload.array('memory_media[]', 10)
         if (!existingMemory) {
             return res.status(404).json({ error: 'Memory not found' });
         }
-
-        if (existingMemory.owner !== currentEmail) {
+        if (normalizeEmail(existingMemory.owner) !== currentEmail) {
             return res.status(403).json({ error: 'Unauthorized: You can only edit your own memories' });
         }
 
         const { title, date, mood, location, description, tags, friends, selected_friends, keep_existing_media } = req.body;
-
         if (title !== undefined && (!title || !title.trim())) {
             return res.status(400).json({ error: 'Title cannot be empty.' });
         }
@@ -328,6 +303,7 @@ app.put('/api/memories/:id', isAuthenticated, upload.array('memory_media[]', 10)
         }
 
         const updates = { ...existingMemory };
+        delete updates._id;
         if (title !== undefined) updates.title = title.trim();
         if (date !== undefined) updates.date = date.trim();
         if (mood !== undefined) updates.mood = mood;
@@ -337,34 +313,10 @@ app.put('/api/memories/:id', isAuthenticated, upload.array('memory_media[]', 10)
 
         const rawFriends = friends || selected_friends;
         if (rawFriends !== undefined) {
-            let parsedFriends = [];
-            try {
-                parsedFriends = typeof rawFriends === 'string' ? JSON.parse(rawFriends) : rawFriends;
-            } catch (e) {
-                parsedFriends = Array.isArray(rawFriends) ? rawFriends : [rawFriends];
-            }
-            updates.friends = parsedFriends;
+            updates.friends = parseFriendsParam(rawFriends);
         }
 
-        // Media handling
-        let newMediaPaths = [];
-        if (req.files && req.files.length > 0) {
-            newMediaPaths = req.files.map(file => {
-                if (file.provider === 's3') {
-                    return {
-                        url: { provider: 's3', key: file.key, mimeType: file.mimeType, fileName: file.fileName, size: file.size },
-                        type: file.mimeType,
-                        name: file.fileName
-                    };
-                }
-                return {
-                    url: 'uploads/' + file.filename,
-                    type: file.mimetype,
-                    name: file.originalname
-                };
-            });
-        }
-
+        const newMediaPaths = mapUploadedMediaFiles(req.files);
         if (keep_existing_media === 'false') {
             updates.media = newMediaPaths;
         } else if (newMediaPaths.length > 0) {
@@ -374,7 +326,10 @@ app.put('/api/memories/:id', isAuthenticated, upload.array('memory_media[]', 10)
 
         updates.updated_at = new Date().toISOString();
 
-        const updatedMemory = await memoryStore.update_memory(memoryId, currentEmail, updates);
+        const updatedMemory = await memoryStore.update_memory(memoryId, existingMemory.owner || currentEmail, updates);
+        if (!updatedMemory) {
+            return res.status(404).json({ error: 'Memory not found' });
+        }
         const memoryResponse = { ...updatedMemory };
         delete memoryResponse._id;
 
@@ -395,12 +350,11 @@ app.delete('/api/memories/:id', isAuthenticated, async (req, res) => {
         if (!existing) {
             return res.status(404).json({ error: 'Memory not found or unauthorized' });
         }
-        if (existing.owner !== currentEmail) {
+        if (normalizeEmail(existing.owner) !== currentEmail) {
             return res.status(403).json({ error: 'Unauthorized: You can only delete your own memories' });
         }
 
-        const deleted = await memoryStore.delete_memory(memoryId, currentEmail);
-
+        const deleted = await memoryStore.delete_memory(memoryId, existing.owner || currentEmail);
         if (deleted) {
             metrics.memoriesDeletedTotal.inc();
             res.json({ success: true, message: 'Memory deleted' });
@@ -413,103 +367,26 @@ app.delete('/api/memories/:id', isAuthenticated, async (req, res) => {
     }
 });
 
+app.use(handleUploadError);
 app.use((err, req, res, next) => {
-    console.error('Unhandled Memories Error:', err);
-    res.status(500).json({
-        error: isProduction ? 'Internal Server Error' : (err.message || 'Internal Server Error')
-    });
+    console.error('Unhandled Memories Error:', err.message);
+    res.status(500).json({ error: isProduction ? 'Internal Server Error' : (err.message || 'Internal Server Error') });
 });
 
-const HEALTH_DB_PING_TIMEOUT_MS = 2000;
-
-async function isDatabaseHealthy() {
-    if (!memoryStore.isDbConnected()) {
-        return false;
-    }
-    if (!mongodb || typeof mongodb.getDb !== 'function') {
-        return false;
-    }
-    let timeoutId = null;
-    try {
-        const db = mongodb.getDb();
-        if (!db || typeof db.command !== 'function') {
-            return false;
-        }
-        const pingPromise = Promise.resolve(db.command({ ping: 1 })).then(
-            (result) => !!(result && result.ok === 1),
-            () => false
-        );
-        const timeoutPromise = new Promise((resolve) => {
-            timeoutId = setTimeout(() => resolve(false), HEALTH_DB_PING_TIMEOUT_MS);
-        });
-        return await Promise.race([pingPromise, timeoutPromise]);
-    } catch (err) {
-        return false;
-    } finally {
-        if (timeoutId) {
-            clearTimeout(timeoutId);
-        }
-    }
-}
-
-app.get('/health/live', (req, res) => {
-    res.status(200).json({
-        status: 'UP',
-        service: 'memories-service'
-    });
+registerHealthRoutes({
+    app,
+    serviceName: 'memories-service',
+    displayName: 'Memories Service',
+    mongodb,
+    isDbConnected: () => memoryStore.isDbConnected()
 });
 
-app.get('/health', async (req, res) => {
-    const dbConnected = await isDatabaseHealthy();
-    res.status(dbConnected ? 200 : 503).json({
-        status: dbConnected ? 'UP' : 'DOWN',
-        service: 'memories-service',
-        database: dbConnected ? 'connected' : 'disconnected'
-    });
+const startServer = createServiceStarter({
+    app,
+    port: PORT,
+    displayName: 'Memories Service',
+    mongodb
 });
-
-let serverInstance = null;
-
-async function startServer() {
-    if (mongodb && process.env.MONGODB_URI) {
-        try {
-            const { db } = await mongodb.connect();
-            await mongodb.initializeIndexes(db);
-            console.log('Memories Service: Successfully connected to MongoDB and initialized indexes.');
-        } catch (err) {
-            console.error('Memories Service: Error - MongoDB connection failed on startup:', err.message);
-        }
-    } else {
-        console.warn('Memories Service: Warning - No MONGODB_URI configured.');
-    }
-
-    serverInstance = app.listen(PORT, () => {
-        console.log(`Memories Service running on port ${PORT}`);
-    });
-
-    const shutdown = async () => {
-        console.log('Shutting down gracefully...');
-        if (mongodb && mongodb.isConnected()) {
-            try {
-                await mongodb.close();
-                console.log('MongoDB connection closed.');
-            } catch (err) {
-                console.error('Error closing MongoDB connection:', err.message);
-            }
-        }
-        if (serverInstance) {
-            serverInstance.close(() => {
-                console.log('Closed out remaining connections');
-                process.exit(0);
-            });
-        }
-    };
-
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
-
-    return serverInstance;
-}
 
 if (require.main === module) {
     startServer();

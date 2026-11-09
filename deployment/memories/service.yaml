@@ -16,4 +16,23 @@ spec:
     port: 3002
     targetPort: 3002
     protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: memories-service-metrics
+  namespace: memorybook
+  labels:
+    app: memories-service
+    app.kubernetes.io/name: memories-service
+    app.kubernetes.io/part-of: memorybook
+spec:
+  clusterIP: None
+  selector:
+    app: memories-service
+  ports:
+  - name: metrics
+    port: 3002
+    targetPort: 3002
+    protocol: TCP
 

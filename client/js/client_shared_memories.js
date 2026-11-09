@@ -112,8 +112,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 previewImg = firstImg ? (firstImg.url || firstImg.preview_url || firstImg.path) : (m.media[0].url || m.media[0].preview_url || m.media[0].path);
             }
-            if(previewImg) {
-                memImg.src = window.MemoryBookConfig ? window.MemoryBookConfig.resolveMediaUrl(previewImg) : previewImg;
+            const resolvedPreview = previewImg ? window.MemoryBookConfig.resolveMediaUrl(previewImg) : '';
+            if (resolvedPreview) {
+                memImg.src = resolvedPreview;
                 memImg.classList.remove('hidden');
             } else {
                 memImg.classList.add('hidden');
@@ -127,24 +128,46 @@ document.addEventListener('DOMContentLoaded', async () => {
                 metaBadgeEl.className = 'flex flex-wrap gap-2 mt-2 pt-2 border-t border-[#8B7EC8]/20';
                 pv.appendChild(metaBadgeEl);
             }
-            let badgesHtml = '';
+            metaBadgeEl.textContent = '';
             const mediaCount = (m.media && Array.isArray(m.media)) ? m.media.length : 0;
             if (mediaCount > 0) {
-                badgesHtml += `<span class="px-2.5 py-1 rounded-full bg-[#8B7EC8] text-white text-xs font-semibold flex items-center gap-1.5"><i class="fa fa-photo-film"></i> ${mediaCount} media file(s) included</span>`;
+                const mediaBadge = document.createElement('span');
+                mediaBadge.className = 'px-2.5 py-1 rounded-full bg-[#8B7EC8] text-white text-xs font-semibold flex items-center gap-1.5';
+                const icon = document.createElement('i');
+                icon.className = 'fa fa-photo-film';
+                mediaBadge.appendChild(icon);
+                mediaBadge.appendChild(document.createTextNode(` ${mediaCount} media file(s) included`));
+                metaBadgeEl.appendChild(mediaBadge);
             }
             if (m.mood) {
-                badgesHtml += `<span class="px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs font-medium flex items-center gap-1"><i class="fa fa-smile"></i> ${m.mood}</span>`;
+                const moodBadge = document.createElement('span');
+                moodBadge.className = 'px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs font-medium flex items-center gap-1';
+                const icon = document.createElement('i');
+                icon.className = 'fa fa-smile';
+                moodBadge.appendChild(icon);
+                moodBadge.appendChild(document.createTextNode(' ' + m.mood));
+                metaBadgeEl.appendChild(moodBadge);
             }
             if (m.location) {
-                badgesHtml += `<span class="px-2.5 py-1 rounded-full bg-green-100 text-green-800 text-xs font-medium flex items-center gap-1"><i class="fa fa-location-dot"></i> ${m.location}</span>`;
+                const locBadge = document.createElement('span');
+                locBadge.className = 'px-2.5 py-1 rounded-full bg-green-100 text-green-800 text-xs font-medium flex items-center gap-1';
+                const icon = document.createElement('i');
+                icon.className = 'fa fa-location-dot';
+                locBadge.appendChild(icon);
+                locBadge.appendChild(document.createTextNode(' ' + m.location));
+                metaBadgeEl.appendChild(locBadge);
             }
             if (m.tags) {
                 const tagsList = typeof m.tags === 'string' ? m.tags.split(',') : (Array.isArray(m.tags) ? m.tags : [m.tags]);
                 tagsList.forEach(t => {
-                    if (t.trim()) badgesHtml += `<span class="px-2.5 py-1 rounded-full bg-[#A8C8EC] text-white text-xs font-medium">#${t.trim().replace(/^#/, '')}</span>`;
+                    if (String(t).trim()) {
+                        const tagBadge = document.createElement('span');
+                        tagBadge.className = 'px-2.5 py-1 rounded-full bg-[#A8C8EC] text-white text-xs font-medium';
+                        tagBadge.textContent = '#' + String(t).trim().replace(/^#/, '');
+                        metaBadgeEl.appendChild(tagBadge);
+                    }
                 });
             }
-            metaBadgeEl.innerHTML = badgesHtml;
         }
     });
 
@@ -196,18 +219,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function loadRecent() {
         try {
             const res = await axios.get('/api/shared_memories');
-            const data = res.data;
+            const data = res.data || [];
             const list = document.getElementById('recentSharedList');
+            list.textContent = '';
             if(data.length === 0) {
-                list.innerHTML = '<div class="text-gray-400 text-center">You haven’t shared any memories yet.</div>';
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'text-gray-400 text-center';
+                emptyDiv.textContent = 'You haven’t shared any memories yet.';
+                list.appendChild(emptyDiv);
                 return;
             }
-            let html = '';
             data.slice(0,5).forEach(m => {
-                const targetId = m.original_memory_id || m.memory_id;
-                const galleryId = 'media-gallery-' + m.memory_id;
-                let attachmentsHtml = '';
-                
+                const targetId = m.memory_id || m.original_memory_id || '';
+                const galleryId = 'media-gallery-' + (m.memory_id || '');
+
                 const allRecentMedia = [];
                 const seenRec = new Set();
                 const addRecMedia = (item) => {
@@ -223,78 +248,180 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (m.media && Array.isArray(m.media)) m.media.forEach(addRecMedia);
                 if (m.image) addRecMedia(m.image);
 
+                const li = document.createElement('li');
+                li.className = 'flex items-start gap-3 p-4 rounded-xl bg-[#F5F3FB] hover:bg-[#E6F1FB] transition border border-[#F4A6A6]/30 cursor-pointer';
+                li.addEventListener('click', () => {
+                    window.location.href = '/memories/view_shared_memory.html?id=' + encodeURIComponent(targetId);
+                });
+
+                const body = document.createElement('div');
+                body.className = 'flex-1 relative';
+
+                const headerRow = document.createElement('div');
+                headerRow.className = 'flex items-center justify-between';
+
+                const whoDiv = document.createElement('div');
+                whoDiv.className = 'font-semibold text-[#8B7EC8]';
+                whoDiv.textContent = m.is_received ? 'From: ' + (m.from_username || m.from || '') : 'To: ' + (m.to_username || m.to || '');
+                if (m.is_received && !m.seen) {
+                    const newBadge = document.createElement('span');
+                    newBadge.className = 'ml-2 text-xs bg-red-500 text-white px-2 py-0.5 rounded-full';
+                    newBadge.textContent = 'New';
+                    whoDiv.appendChild(newBadge);
+                }
+
+                const dateDiv = document.createElement('div');
+                dateDiv.className = 'text-xs text-gray-400';
+                dateDiv.textContent = m.date || '';
+
+                headerRow.appendChild(whoDiv);
+                headerRow.appendChild(dateDiv);
+                body.appendChild(headerRow);
+
+                const titleDiv = document.createElement('div');
+                titleDiv.className = 'text-sm font-medium text-gray-800 mt-1';
+                titleDiv.textContent = m.memory_title || m.title || '(No Title)';
+                body.appendChild(titleDiv);
+
+                if (m.mood || m.location) {
+                    const pillsWrap = document.createElement('div');
+                    pillsWrap.className = 'flex flex-wrap gap-1 mt-1';
+                    if (m.mood) {
+                        const moodPill = document.createElement('span');
+                        moodPill.className = 'text-[11px] px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800';
+                        const icon = document.createElement('i');
+                        icon.className = 'fa fa-smile mr-1';
+                        moodPill.appendChild(icon);
+                        moodPill.appendChild(document.createTextNode(m.mood));
+                        pillsWrap.appendChild(moodPill);
+                    }
+                    if (m.location) {
+                        const locPill = document.createElement('span');
+                        locPill.className = 'text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-800';
+                        const icon = document.createElement('i');
+                        icon.className = 'fa fa-location-dot mr-1';
+                        locPill.appendChild(icon);
+                        locPill.appendChild(document.createTextNode(m.location));
+                        pillsWrap.appendChild(locPill);
+                    }
+                    body.appendChild(pillsWrap);
+                }
+
+                const snippet = m.description || m.message || '';
+                const snippetDiv = document.createElement('div');
+                snippetDiv.className = 'text-xs text-gray-600 mt-1 line-clamp-2';
+                snippetDiv.textContent = snippet.substring(0, 80) + (snippet.length > 80 ? '...' : '');
+                body.appendChild(snippetDiv);
+
                 if (allRecentMedia.length > 0) {
-                    attachmentsHtml += `<div class="media-gallery mt-2" id="${galleryId}">`;
+                    const galleryDiv = document.createElement('div');
+                    galleryDiv.className = 'media-gallery mt-2';
+                    galleryDiv.id = galleryId;
+                    galleryDiv.dataset.current = '0';
+
                     allRecentMedia.forEach((att, idx) => {
                         const rawUrl = typeof att === 'string' ? att : (att.url || att.preview_url || att.path || '');
-                        const src = window.MemoryBookConfig ? window.MemoryBookConfig.resolveMediaUrl(rawUrl) : rawUrl;
-                        const ext = window.MemoryBookConfig ? window.MemoryBookConfig.getCleanExtension(src) : src.split('?')[0].split('#')[0].split('.').pop().toLowerCase();
+                        const src = window.MemoryBookConfig.resolveMediaUrl(rawUrl);
+                        const ext = window.MemoryBookConfig.getCleanExtension(src);
                         let type = (typeof att === 'object' && (att.type || att.mimeType)) || '';
                         if (!type) {
-                            if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) type = 'image/jpeg';
+                            if (['jpg','jpeg','png','gif','webp'].includes(ext)) type = 'image/jpeg';
                             else if (['mp4','mov','avi','webm'].includes(ext)) type = 'video/mp4';
                             else if (['mp3','wav','ogg','aac','m4a'].includes(ext)) type = 'audio/mpeg';
                             else type = 'other';
                         }
-                        
-                        const disp = idx === 0 ? '' : 'display:none;';
-                        const dlUrl = (typeof att === 'object' && att.download_url) ? att.download_url : src;
+
+                        const slide = document.createElement('div');
+                        slide.className = 'media-slide';
+                        slide.dataset.index = String(idx);
+                        if (idx !== 0) slide.style.display = 'none';
+
+                        const dlUrl = (typeof att === 'object' && att.download_url) ? window.MemoryBookConfig.resolveMediaUrl(att.download_url) : src;
                         const dlName = (typeof att === 'object' && (att.fileName || att.name)) || (typeof rawUrl === 'string' ? rawUrl.split('?')[0].split('/').pop() : 'attachment');
-                        
-                        attachmentsHtml += `<div class="media-slide" data-index="${idx}" style="${disp}">`;
-                        if (type.startsWith('image/')) {
-                            attachmentsHtml += `<img src="${src}" class="max-h-32 rounded-lg mb-2 object-cover" />`;
-                        } else if (type.startsWith('video/')) {
-                            attachmentsHtml += `<video src="${src}" controls class="max-h-32 rounded-lg mb-2"></video>`;
-                        } else if (type.startsWith('audio/')) {
-                            attachmentsHtml += `<audio src="${src}" controls class="mb-2"></audio>`;
+
+                        if (type.startsWith('image/') && src) {
+                            const img = document.createElement('img');
+                            img.src = src;
+                            img.className = 'max-h-32 rounded-lg mb-2 object-cover';
+                            slide.appendChild(img);
+                        } else if (type.startsWith('video/') && src) {
+                            const vid = document.createElement('video');
+                            vid.src = src;
+                            vid.controls = true;
+                            vid.className = 'max-h-32 rounded-lg mb-2';
+                            slide.appendChild(vid);
+                        } else if (type.startsWith('audio/') && src) {
+                            const aud = document.createElement('audio');
+                            aud.src = src;
+                            aud.controls = true;
+                            aud.className = 'mb-2';
+                            slide.appendChild(aud);
                         } else {
-                            attachmentsHtml += `<div class="flex flex-col items-center mb-2"><i class="fa fa-file-alt text-2xl text-[#8B7EC8] mb-1"></i><span class="text-xs text-[#6B6B7D]">${dlName}</span></div>`;
+                            const fileBox = document.createElement('div');
+                            fileBox.className = 'flex flex-col items-center mb-2';
+                            const fileIcon = document.createElement('i');
+                            fileIcon.className = 'fa fa-file-alt text-2xl text-[#8B7EC8] mb-1';
+                            const nameSpan = document.createElement('span');
+                            nameSpan.className = 'text-xs text-[#6B6B7D]';
+                            nameSpan.textContent = dlName;
+                            fileBox.appendChild(fileIcon);
+                            fileBox.appendChild(nameSpan);
+                            slide.appendChild(fileBox);
                         }
-                        
-                        attachmentsHtml += `
-                            <a href="${dlUrl}" download="${dlName}" class="inline-flex px-2 py-1 bg-[#8B7EC8] text-white rounded text-xs font-semibold hover:bg-[#6BCB77] transition items-center gap-2" onclick="event.stopPropagation();">
-                                <i class="fa fa-download"></i> Download
-                            </a>
-                        </div>`;
+
+                        if (dlUrl) {
+                            const dlLink = document.createElement('a');
+                            dlLink.href = dlUrl;
+                            dlLink.download = dlName;
+                            dlLink.rel = 'noopener noreferrer';
+                            dlLink.className = 'inline-flex px-2 py-1 bg-[#8B7EC8] text-white rounded text-xs font-semibold hover:bg-[#6BCB77] transition items-center gap-2';
+                            dlLink.addEventListener('click', (e) => e.stopPropagation());
+                            const dlIcon = document.createElement('i');
+                            dlIcon.className = 'fa fa-download';
+                            dlLink.appendChild(dlIcon);
+                            dlLink.appendChild(document.createTextNode(' Download'));
+                            slide.appendChild(dlLink);
+                        }
+
+                        galleryDiv.appendChild(slide);
                     });
-                    
+
                     if (allRecentMedia.length > 1) {
-                        attachmentsHtml += `
-                        <div class="flex gap-2 mt-2 items-center">
-                          <button type="button" onclick="event.stopPropagation(); const g=this.closest('.media-gallery'); let c=parseInt(g.dataset.current||0); const s=g.querySelectorAll('.media-slide'); c=(c-1+s.length)%s.length; g.dataset.current=c; s.forEach((x,i)=>x.style.display=i===c?'':'none');" class="px-2 py-1 bg-[#ede9fe] text-[#7c3aed] rounded font-semibold text-xs">Prev</button>
-                          <button type="button" onclick="event.stopPropagation(); const g=this.closest('.media-gallery'); let c=parseInt(g.dataset.current||0); const s=g.querySelectorAll('.media-slide'); c=(c+1)%s.length; g.dataset.current=c; s.forEach((x,i)=>x.style.display=i===c?'':'none');" class="px-2 py-1 bg-[#ede9fe] text-[#7c3aed] rounded font-semibold text-xs">Next</button>
-                          <span class="text-xs text-gray-500">${allRecentMedia.length} files</span>
-                        </div>`;
+                        const ctrlRow = document.createElement('div');
+                        ctrlRow.className = 'flex gap-2 mt-2 items-center';
+
+                        const makeNavBtn = (label, delta) => {
+                            const btn = document.createElement('button');
+                            btn.type = 'button';
+                            btn.className = 'px-2 py-1 bg-[#ede9fe] text-[#7c3aed] rounded font-semibold text-xs';
+                            btn.textContent = label;
+                            btn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                const s = galleryDiv.querySelectorAll('.media-slide');
+                                let c = parseInt(galleryDiv.dataset.current || '0', 10);
+                                c = (c + delta + s.length) % s.length;
+                                galleryDiv.dataset.current = String(c);
+                                s.forEach((x, i) => { x.style.display = i === c ? '' : 'none'; });
+                            });
+                            return btn;
+                        };
+
+                        const countSpan = document.createElement('span');
+                        countSpan.className = 'text-xs text-gray-500';
+                        countSpan.textContent = `${allRecentMedia.length} files`;
+
+                        ctrlRow.appendChild(makeNavBtn('Prev', -1));
+                        ctrlRow.appendChild(makeNavBtn('Next', 1));
+                        ctrlRow.appendChild(countSpan);
+                        galleryDiv.appendChild(ctrlRow);
                     }
-                    attachmentsHtml += `</div>`;
+
+                    body.appendChild(galleryDiv);
                 }
 
-                // Metadata tags in recent card
-                let metaPills = '';
-                if (m.mood) metaPills += `<span class="text-[11px] px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800"><i class="fa fa-smile mr-1"></i>${m.mood}</span> `;
-                if (m.location) metaPills += `<span class="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-800"><i class="fa fa-location-dot mr-1"></i>${m.location}</span> `;
-
-                html += `
-                <li class="flex items-start gap-3 p-4 rounded-xl bg-[#F5F3FB] hover:bg-[#E6F1FB] transition border border-[#F4A6A6]/30 cursor-pointer" onclick="window.location.href='/memories/view_shared_memory.html?id=${targetId}'">
-                  <div class="flex-1 relative">
-                    <div class="flex items-center justify-between">
-                      <div class="font-semibold text-[#8B7EC8]">
-                        ${m.is_received ? 'From: ' + (m.from_username || m.from) : 'To: ' + (m.to_username || m.to)}
-                        ${m.is_received && !m.seen ? '<span class="ml-2 text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">New</span>' : ''}
-                      </div>
-                      <div class="text-xs text-gray-400">${m.date || ''}</div>
-                    </div>
-                    <div class="text-sm font-medium text-gray-800 mt-1">${m.memory_title || m.title || '(No Title)'}</div>
-                    ${metaPills ? '<div class="flex flex-wrap gap-1 mt-1">' + metaPills + '</div>' : ''}
-                    <div class="text-xs text-gray-600 mt-1 line-clamp-2">
-                      ${(m.description || m.message || '').substring(0,80)}${((m.description || m.message || '').length > 80) ? '...' : ''}
-                    </div>
-                    ${attachmentsHtml}
-                  </div>
-                </li>`;
+                li.appendChild(body);
+                list.appendChild(li);
             });
-            list.innerHTML = html;
         } catch(e) {}
     }
 

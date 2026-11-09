@@ -21,15 +21,24 @@ spec:
     spec:
       containers:
       - name: auth-service
-        image: scrapbook-auth:latest
+        image: "<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/memory-book-auth:<IMAGE_TAG>"
         imagePullPolicy: IfNotPresent
         ports:
         - name: http
           containerPort: 3001
           protocol: TCP
+        env:
+        - name: PORT
+          value: "3001"
+        - name: MEMORIES_SERVICE_URL
+          value: "http://memories-service:3002"
+        - name: SOCIAL_SERVICE_URL
+          value: "http://social-service:3003"
+        - name: SHARING_SERVICE_URL
+          value: "http://sharing-service:3004"
         envFrom:
         - configMapRef:
-            name: auth-config
+            name: app-config
         - secretRef:
             name: app-secrets
         resources:

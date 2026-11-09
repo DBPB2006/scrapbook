@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 ENV NODE_ENV=production
 
 COPY auth-service/package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 COPY auth-service/ ./
 COPY shared/ ./shared/

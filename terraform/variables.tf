@@ -1,20 +1,11 @@
-# ==============================================================================
-# Memory Book — Terraform Foundation Input Variables
-# ==============================================================================
-
 variable "aws_region" {
-  description = "Primary AWS region for Memory Book infrastructure."
+  description = "Primary AWS region for Memory Book."
   type        = string
   default     = "ap-south-1"
-
-  validation {
-    condition     = can(regex("^[a-z]{2}-[a-z-]+-[0-9]+$", var.aws_region))
-    error_message = "aws_region must be a valid AWS region identifier (for example, ap-south-1)."
-  }
 }
 
 variable "environment" {
-  description = "Deployment environment identifier (for example: trial, dev, staging, production)."
+  description = "Deployment environment (trial, dev, staging, production)."
   type        = string
   default     = "trial"
 
@@ -25,29 +16,13 @@ variable "environment" {
 }
 
 variable "project_name" {
-  description = "Lowercase project identifier used in resource naming and tagging."
+  description = "Lowercase project identifier used in resource names."
   type        = string
   default     = "memory-book"
-
-  validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{1,28}[a-z0-9]$", var.project_name))
-    error_message = "project_name must be lowercase alphanumeric/hyphens (3-30 chars, start with letter)."
-  }
-}
-
-variable "resource_name_prefix" {
-  description = "Optional custom prefix overriding '<project_name>-<environment>'."
-  type        = string
-  default     = null
-
-  validation {
-    condition     = var.resource_name_prefix == null || can(regex("^[a-z][a-z0-9-]{1,40}[a-z0-9]$", var.resource_name_prefix))
-    error_message = "When set, resource_name_prefix must use lowercase letters, digits, and hyphens."
-  }
 }
 
 variable "availability_zones" {
-  description = "Availability Zones in ap-south-1 (two AZs required for public ALB subnets)."
+  description = "Two Availability Zones in ap-south-1."
   type        = list(string)
   default     = ["ap-south-1a", "ap-south-1b"]
 
@@ -58,55 +33,77 @@ variable "availability_zones" {
 }
 
 variable "vpc_cidr" {
-  description = "Primary IPv4 CIDR block for the Memory Book VPC."
+  description = "Primary IPv4 CIDR block for the VPC."
   type        = string
   default     = "10.0.0.0/16"
-
-  validation {
-    condition     = can(cidrhost(var.vpc_cidr, 0))
-    error_message = "vpc_cidr must be a valid IPv4 CIDR block (for example, 10.0.0.0/16)."
-  }
 }
 
 variable "public_subnet_cidrs" {
-  description = "IPv4 CIDR blocks for Public Subnet A and Public Subnet B (ALB and NAT Gateway)."
+  description = "CIDR blocks for Public Subnets A and B."
   type        = list(string)
   default     = ["10.0.1.0/24", "10.0.2.0/24"]
 
   validation {
-    condition = (
-      length(var.public_subnet_cidrs) == 2 &&
-      alltrue([for cidr in var.public_subnet_cidrs : can(cidrhost(cidr, 0))]) &&
-      length(distinct(var.public_subnet_cidrs)) == 2
-    )
-    error_message = "public_subnet_cidrs must contain two distinct valid IPv4 CIDR blocks."
+    condition     = length(var.public_subnet_cidrs) == 2 && length(distinct(var.public_subnet_cidrs)) == 2
+    error_message = "Exactly two distinct public_subnet_cidrs must be provided."
   }
 }
 
 variable "private_app_subnet_cidr" {
-  description = "IPv4 CIDR block for the Private Application Subnet (Jenkins and K3s nodes)."
+  description = "CIDR block for the Private Application Subnet (Jenkins and K3s)."
   type        = string
   default     = "10.0.11.0/24"
-
-  validation {
-    condition     = can(cidrhost(var.private_app_subnet_cidr, 0))
-    error_message = "private_app_subnet_cidr must be a valid IPv4 CIDR block."
-  }
 }
 
 variable "private_db_subnet_cidr" {
-  description = "IPv4 CIDR block for the Private Database Subnet (MongoDB EC2 host)."
+  description = "CIDR block for the Private Database Subnet (MongoDB)."
   type        = string
   default     = "10.0.21.0/24"
+}
 
-  validation {
-    condition     = can(cidrhost(var.private_db_subnet_cidr, 0))
-    error_message = "private_db_subnet_cidr must be a valid IPv4 CIDR block."
-  }
+variable "media_bucket_name" {
+  description = "Optional custom private media S3 bucket name (defaults to '<name_prefix>-media-<account_id>')."
+  type        = string
+  default     = null
+}
+
+variable "frontend_bucket_name" {
+  description = "Optional custom frontend website S3 bucket name (defaults to '<name_prefix>-frontend-<account_id>')."
+  type        = string
+  default     = null
 }
 
 variable "additional_tags" {
-  description = "Optional extra AWS resource tags merged onto default provider tags."
+  description = "Optional extra AWS resource tags."
   type        = map(string)
   default     = {}
+}
+
+variable "k3s_instance_type" {
+  description = "EC2 instance type for the single-node K3s host."
+  type        = string
+  default     = "t3.medium"
+}
+
+variable "jenkins_instance_type" {
+  description = "EC2 instance type for the Jenkins host."
+  type        = string
+  default     = "t3.small"
+}
+
+variable "mongodb_instance_type" {
+  description = "EC2 instance type for the MongoDB Community Edition host."
+  type        = string
+  default     = "t3.small"
+}
+
+variable "mongodb_data_volume_size" {
+  description = "Persistent MongoDB EBS data volume size in GiB."
+  type        = number
+  default     = 8
+
+  validation {
+    condition     = var.mongodb_data_volume_size >= 8
+    error_message = "mongodb_data_volume_size must be at least 8 GiB."
+  }
 }

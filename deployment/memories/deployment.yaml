@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: memories-service
-        image: scrapbook-memories:latest
+        image: "<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/memory-book-memories:<IMAGE_TAG>"
         imagePullPolicy: IfNotPresent
         ports:
         - name: http
@@ -30,15 +30,9 @@ spec:
         env:
         - name: PORT
           value: "3002"
-        - name: NODE_ENV
-          value: "production"
-        - name: AWS_REGION
-          value: "ap-south-1"
-        - name: AWS_S3_BUCKET
-          value: "scrapbook-media"
-        - name: MONGODB_DATABASE
-          value: "memorybook"
         envFrom:
+        - configMapRef:
+            name: app-config
         - secretRef:
             name: app-secrets
         resources:

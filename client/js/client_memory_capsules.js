@@ -200,70 +200,152 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load capsules
     async function loadCapsules() {
+        const list = document.getElementById('capsulesList');
         try {
             const res = await axios.get('/api/capsules?t=' + Date.now());
-            const capsules = res.data;
-            
-            const list = document.getElementById('capsulesList');
+            const capsules = res.data || [];
+
+            list.textContent = '';
             if (capsules.length === 0) {
-                list.innerHTML = '<div class="col-span-2 text-center text-gray-500 py-10">No time capsules found.</div>';
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'col-span-2 text-center text-gray-500 py-10';
+                emptyDiv.textContent = 'No time capsules found.';
+                list.appendChild(emptyDiv);
                 return;
             }
-            
-            let html = '';
+
             capsules.forEach(c => {
                 const isUnlocked = c.unlocked == 1;
-                const rDateStr = c.reveal_date;
-                let cTime = '';
-                
-                const pad = (n) => n.toString().padStart(2, '0');
-                const localReveal = new Date(c.reveal_date.replace(' ', 'T') + 'Z');
-                const displayReveal = isNaN(localReveal.getTime()) ? c.reveal_date : `${localReveal.getFullYear()}-${pad(localReveal.getMonth()+1)}-${pad(localReveal.getDate())} ${pad(localReveal.getHours())}:${pad(localReveal.getMinutes())}:${pad(localReveal.getSeconds())}`;
-                
-                const localCreated = new Date(c.created_at.replace(' ', 'T') + 'Z');
-                const displayCreated = isNaN(localCreated.getTime()) ? c.created_at : `${localCreated.getFullYear()}-${pad(localCreated.getMonth()+1)}-${pad(localCreated.getDate())} ${pad(localCreated.getHours())}:${pad(localCreated.getMinutes())}:${pad(localCreated.getSeconds())}`;
+                const rDateStr = c.reveal_date || '';
 
-                if (isUnlocked) {
-                    cTime = `<p class="font-semibold mt-2 text-pastel-green"><i class="fas fa-gift mr-1"></i>Capsule is Unlocked</p>`;
-                } else {
-                    cTime = `<div class="font-semibold text-yellow-700 flex items-center"><i class="fas fa-hourglass-start mr-2"></i>Capsule unlocks in <span class="ml-2 countdown" data-reveal="${rDateStr}"></span></div>
-                    <div class="text-center text-gray-400 w-full mt-4"><i class="fas fa-lock text-5xl mb-4"></i><p class="text-lg font-semibold">Content is Locked</p></div>`;
+                const pad = (n) => n.toString().padStart(2, '0');
+                const localReveal = new Date(String(rDateStr).replace(' ', 'T') + 'Z');
+                const displayReveal = isNaN(localReveal.getTime()) ? rDateStr : `${localReveal.getFullYear()}-${pad(localReveal.getMonth()+1)}-${pad(localReveal.getDate())} ${pad(localReveal.getHours())}:${pad(localReveal.getMinutes())}:${pad(localReveal.getSeconds())}`;
+
+                const cDateStr = c.created_at || '';
+                const localCreated = new Date(String(cDateStr).replace(' ', 'T') + 'Z');
+                const displayCreated = isNaN(localCreated.getTime()) ? cDateStr : `${localCreated.getFullYear()}-${pad(localCreated.getMonth()+1)}-${pad(localCreated.getDate())} ${pad(localCreated.getHours())}:${pad(localCreated.getMinutes())}:${pad(localCreated.getSeconds())}`;
+
+                const link = document.createElement('a');
+                link.href = `/capsules/open_capsule.html?id=${encodeURIComponent(c.id)}`;
+                link.className = 'block group';
+
+                const card = document.createElement('div');
+                card.className = 'rounded-2xl shadow-lg border max-w-md w-full mx-auto p-6 flex flex-col justify-between h-full relative bg-white/90 transition-transform group-hover:scale-105 group-hover:shadow-2xl border-pastel-purple cursor-pointer';
+
+                const badgeWrap = document.createElement('div');
+                badgeWrap.className = 'absolute top-4 right-4';
+                const badge = document.createElement('span');
+                badge.className = `inline-block px-3 py-1 rounded-full text-xs font-bold ${isUnlocked ? 'bg-pastel-green text-green-800' : 'bg-pastel-pink text-red-800'}`;
+                const badgeIcon = document.createElement('i');
+                badgeIcon.className = `fas ${isUnlocked ? 'fa-lock-open mr-1' : 'fa-lock mr-1'}`;
+                badge.appendChild(badgeIcon);
+                badge.appendChild(document.createTextNode(isUnlocked ? 'Unlocked' : 'Locked'));
+                badgeWrap.appendChild(badge);
+                card.appendChild(badgeWrap);
+
+                const recipRow = document.createElement('div');
+                recipRow.className = 'flex items-center mb-3';
+                const userIcon = document.createElement('i');
+                userIcon.className = 'fas fa-user-circle text-2xl text-pastel-purple';
+                const recipSpan = document.createElement('span');
+                recipSpan.className = 'text-lg font-semibold ml-3 text-gray-700';
+                recipSpan.textContent = `To: ${c.recipient_email || ''}`;
+                recipRow.appendChild(userIcon);
+                recipRow.appendChild(recipSpan);
+                card.appendChild(recipRow);
+
+                const revealRow = document.createElement('div');
+                revealRow.className = 'flex items-center text-sm mb-2 text-pastel-purple';
+                const calIcon = document.createElement('i');
+                calIcon.className = 'fas fa-calendar-alt mr-1';
+                revealRow.appendChild(calIcon);
+                revealRow.appendChild(document.createTextNode('Reveal: '));
+                const revealVal = document.createElement('span');
+                revealVal.className = 'font-mono ml-1';
+                revealVal.textContent = displayReveal;
+                revealRow.appendChild(revealVal);
+                card.appendChild(revealRow);
+
+                const createdRow = document.createElement('div');
+                createdRow.className = 'flex items-center text-sm mb-2 text-pastel-purple';
+                const clockIcon = document.createElement('i');
+                clockIcon.className = 'fas fa-clock mr-1';
+                createdRow.appendChild(clockIcon);
+                createdRow.appendChild(document.createTextNode('Created: '));
+                const createdVal = document.createElement('span');
+                createdVal.className = 'font-mono ml-1';
+                createdVal.textContent = displayCreated;
+                createdRow.appendChild(createdVal);
+                card.appendChild(createdRow);
+
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'mt-2 mb-3 text-pastel-purple';
+                const msgIcon = document.createElement('i');
+                msgIcon.className = 'fas fa-comment-dots mr-1';
+                msgDiv.appendChild(msgIcon);
+                window.MemoryBookConfig.setTextWithBreaks(msgDiv, c.message || '', { append: true });
+                card.appendChild(msgDiv);
+
+                if (c.description) {
+                    const descDiv = document.createElement('div');
+                    descDiv.className = 'mb-3 text-sm text-gray-600';
+                    const descIcon = document.createElement('i');
+                    descIcon.className = 'fas fa-sticky-note mr-1';
+                    descDiv.appendChild(descIcon);
+                    window.MemoryBookConfig.setTextWithBreaks(descDiv, c.description, { append: true });
+                    card.appendChild(descDiv);
                 }
 
-                html += `
-                <a href="/capsules/open_capsule.html?id=${encodeURIComponent(c.id)}" class="block group">
-                    <div class="rounded-2xl shadow-lg border max-w-md w-full mx-auto p-6 flex flex-col justify-between h-full relative bg-white/90 transition-transform group-hover:scale-105 group-hover:shadow-2xl border-pastel-purple cursor-pointer">
-                        <div class="absolute top-4 right-4">
-                            <span class="inline-block px-3 py-1 rounded-full text-xs font-bold ${isUnlocked ? 'bg-pastel-green text-green-800' : 'bg-pastel-pink text-red-800'}">
-                                <i class="fas ${isUnlocked ? 'fa-lock-open mr-1' : 'fa-lock mr-1'}"></i>${isUnlocked ? 'Unlocked' : 'Locked'}
-                            </span>
-                        </div>
-                        <div class="flex items-center mb-3">
-                            <i class="fas fa-user-circle text-2xl text-pastel-purple"></i>
-                            <span class="text-lg font-semibold ml-3 text-gray-700">To: ${c.recipient_email}</span>
-                        </div>
-                        <div class="flex items-center text-sm mb-2 text-pastel-purple">
-                            <i class="fas fa-calendar-alt mr-1"></i>Reveal: <span class="font-mono ml-1">${displayReveal}</span>
-                        </div>
-                        <div class="flex items-center text-sm mb-2 text-pastel-purple">
-                            <i class="fas fa-clock mr-1"></i>Created: <span class="font-mono ml-1">${displayCreated}</span>
-                        </div>
-                        <div class="mt-2 mb-3 text-pastel-purple"><i class="fas fa-comment-dots mr-1"></i>${c.message.replace(/\n/g, '<br/>')}</div>
-                        ${c.description ? `<div class="mb-3 text-sm text-gray-600"><i class="fas fa-sticky-note mr-1"></i>${c.description.replace(/\n/g, '<br/>')}</div>` : ''}
-                        
-                        <div class="mt-3">
-                            ${cTime}
-                        </div>
-                    </div>
-                </a>`;
+                const statusWrap = document.createElement('div');
+                statusWrap.className = 'mt-3';
+                if (isUnlocked) {
+                    const unlockedP = document.createElement('p');
+                    unlockedP.className = 'font-semibold mt-2 text-pastel-green';
+                    const giftIcon = document.createElement('i');
+                    giftIcon.className = 'fas fa-gift mr-1';
+                    unlockedP.appendChild(giftIcon);
+                    unlockedP.appendChild(document.createTextNode('Capsule is Unlocked'));
+                    statusWrap.appendChild(unlockedP);
+                } else {
+                    const countdownRow = document.createElement('div');
+                    countdownRow.className = 'font-semibold text-yellow-700 flex items-center';
+                    const hgIcon = document.createElement('i');
+                    hgIcon.className = 'fas fa-hourglass-start mr-2';
+                    countdownRow.appendChild(hgIcon);
+                    countdownRow.appendChild(document.createTextNode('Capsule unlocks in '));
+                    const cdSpan = document.createElement('span');
+                    cdSpan.className = 'ml-2 countdown';
+                    cdSpan.dataset.reveal = rDateStr;
+                    countdownRow.appendChild(cdSpan);
+
+                    const lockedBanner = document.createElement('div');
+                    lockedBanner.className = 'text-center text-gray-400 w-full mt-4';
+                    const lockIcon = document.createElement('i');
+                    lockIcon.className = 'fas fa-lock text-5xl mb-4';
+                    const lockText = document.createElement('p');
+                    lockText.className = 'text-lg font-semibold';
+                    lockText.textContent = 'Content is Locked';
+                    lockedBanner.appendChild(lockIcon);
+                    lockedBanner.appendChild(lockText);
+
+                    statusWrap.appendChild(countdownRow);
+                    statusWrap.appendChild(lockedBanner);
+                }
+                card.appendChild(statusWrap);
+                link.appendChild(card);
+                list.appendChild(link);
             });
-            list.innerHTML = html;
-            
+
             // Start countdown timers
             setupCountdowns();
         } catch (err) {
             console.error(err);
-            document.getElementById('capsulesList').innerHTML = '<div class="col-span-2 text-center text-red-500 py-10">Failed to load capsules.</div>';
+            list.textContent = '';
+            const errDiv = document.createElement('div');
+            errDiv.className = 'col-span-2 text-center text-red-500 py-10';
+            errDiv.textContent = 'Failed to load capsules.';
+            list.appendChild(errDiv);
         }
     }
     

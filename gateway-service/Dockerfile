@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 ENV NODE_ENV=production
 
 COPY gateway-service/package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 COPY gateway-service/ ./
 COPY shared/ ./shared/

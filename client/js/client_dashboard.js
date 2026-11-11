@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                         const rawCandidate = mem.image || firstMediaUrl;
                         if (rawCandidate) {
-                            const resolved = window.MemoryBookConfig.resolveMediaUrl(rawCandidate);
+                            const resolved = window.ScrapbookConfig.resolveMediaUrl(rawCandidate);
                             if (resolved) img = resolved;
                         }
 
@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         let img = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(fName);
                         const rawImg = f.profile_image || f.image_url;
                         if (rawImg) {
-                            const resolved = window.MemoryBookConfig.resolveMediaUrl(rawImg);
+                            const resolved = window.ScrapbookConfig.resolveMediaUrl(rawImg);
                             if (resolved) img = resolved;
                         }
 

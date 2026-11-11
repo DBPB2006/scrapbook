@@ -1,24 +1,24 @@
 variable "aws_region" {
-  description = "Primary AWS region for Memory Book."
+  description = "Primary AWS region for Scrapbook."
   type        = string
   default     = "ap-south-1"
 }
 
 variable "environment" {
-  description = "Deployment environment (trial, dev, staging, production)."
+  description = "Deployment environment (dev, staging, production)."
   type        = string
-  default     = "trial"
+  default     = "production"
 
   validation {
-    condition     = contains(["trial", "dev", "staging", "production"], var.environment)
-    error_message = "environment must be one of: trial, dev, staging, production."
+    condition     = contains(["dev", "staging", "production"], var.environment)
+    error_message = "environment must be one of: dev, staging, production."
   }
 }
 
 variable "project_name" {
   description = "Lowercase project identifier used in resource names."
   type        = string
-  default     = "memory-book"
+  default     = "scrapbook"
 }
 
 variable "availability_zones" {

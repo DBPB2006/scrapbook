@@ -1,3 +1,4 @@
+// Canonical Jenkins Pipeline Job: scrapbook-pipeline
 pipeline {
     agent any
 
@@ -87,7 +88,7 @@ pipeline {
                 sh '''
                     set -eu
                     for svc in $SERVICES; do
-                        docker build -t "${ECR_REGISTRY}/memory-book-${svc}:${IMAGE_TAG}" -f "${svc}-service/Dockerfile" .
+                        docker build -t "${ECR_REGISTRY}/scrapbook-${svc}:${IMAGE_TAG}" -f "${svc}-service/Dockerfile" .
                     done
                 '''
             }
@@ -99,7 +100,7 @@ pipeline {
                     set -eu
                     mkdir -p reports/trivy
                     for svc in $SERVICES; do
-                        trivy image --exit-code 1 --severity CRITICAL --format table --output "reports/trivy/${svc}-scan.txt" "${ECR_REGISTRY}/memory-book-${svc}:${IMAGE_TAG}"
+                        trivy image --exit-code 1 --severity CRITICAL --format table --output "reports/trivy/${svc}-scan.txt" "${ECR_REGISTRY}/scrapbook-${svc}:${IMAGE_TAG}"
                     done
                 '''
             }
@@ -111,7 +112,7 @@ pipeline {
                     set -eu
                     aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
                     for svc in $SERVICES; do
-                        docker push "${ECR_REGISTRY}/memory-book-${svc}:${IMAGE_TAG}"
+                        docker push "${ECR_REGISTRY}/scrapbook-${svc}:${IMAGE_TAG}"
                     done
                 '''
             }
@@ -156,10 +157,10 @@ pipeline {
                     sh '''
                         set -eu
                         for svc in $SERVICES; do
-                            kubectl rollout status "deployment/${svc}-service" -n memorybook --timeout=180s
+                            kubectl rollout status "deployment/scrapbook-${svc}" -n scrapbook --timeout=180s
                         done
-                        kubectl rollout status deployment/prometheus -n memorybook --timeout=180s
-                        kubectl rollout status deployment/grafana -n memorybook --timeout=180s
+                        kubectl rollout status deployment/scrapbook-prometheus -n scrapbook --timeout=180s
+                        kubectl rollout status deployment/scrapbook-grafana -n scrapbook --timeout=180s
                     '''
                 }
             }

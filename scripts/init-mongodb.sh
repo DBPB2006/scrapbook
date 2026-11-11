@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Idempotent MongoDB Community Edition initialization script for the Memory Book EC2 host (via AWS SSM).
+# Idempotent MongoDB Community Edition initialization script for the Scrapbook EC2 host (via AWS SSM).
 # Creates/updates the admin account (handling first-boot localhost exception) and the least-privilege
 # `readWrite` application user on the target database, then creates aligned collections & indexes.
 #
 # Usage:
-#   export MONGODB_ADMIN_USER="mb_admin"
+#   export MONGODB_ADMIN_USER="scrapbook_admin"
 #   export MONGODB_ADMIN_PASSWORD="<strong-admin-password>"
-#   export MONGODB_APP_USER="mb_app"
+#   export MONGODB_APP_USER="scrapbook_app"
 #   export MONGODB_APP_PASSWORD="<strong-app-password>"
-#   export MONGODB_DATABASE="memorybook"
+#   export MONGODB_DATABASE="scrapbook"
 #   ./scripts/init-mongodb.sh
 
 set -euo pipefail
 
 MONGODB_HOST="${MONGODB_HOST:-127.0.0.1}"
 MONGODB_PORT="${MONGODB_PORT:-27017}"
-MONGODB_DATABASE="${MONGODB_DATABASE:-memorybook}"
+MONGODB_DATABASE="${MONGODB_DATABASE:-scrapbook}"
 
 : "${MONGODB_ADMIN_USER:?MONGODB_ADMIN_USER is required}"
 : "${MONGODB_ADMIN_PASSWORD:?MONGODB_ADMIN_PASSWORD is required}"
@@ -58,7 +58,7 @@ TMP_JS="$(mktemp)"
 trap 'rm -f "${TMP_JS}"' EXIT
 
 cat > "${TMP_JS}" <<'EOF'
-const targetDbName = process.env.MONGODB_DATABASE || "memorybook";
+const targetDbName = process.env.MONGODB_DATABASE || "scrapbook";
 const appUser = process.env.MONGODB_APP_USER;
 const appPassword = process.env.MONGODB_APP_PASSWORD;
 
@@ -137,7 +137,7 @@ ensureIdx(appDb.shared_memories, { original_memory_id: 1, created_at: -1, date: 
 ensureIdx(appDb.shared_memories, { to: 1, seen: 1, created_at: -1, date: -1 }, { name: "idx_shared_to_seen_created" });
 ensureIdx(appDb.shared_memories, { to: 1, created_at: -1, date: -1 }, { name: "idx_shared_to_created" });
 ensureIdx(appDb.shared_memories, { from: 1, created_at: -1, date: -1 }, { name: "idx_shared_from_created" });
-print("Initialized Memory Book collections and indexes on '" + targetDbName + "'.");
+print("Initialized Scrapbook collections and indexes on '" + targetDbName + "'.");
 EOF
 
 run_admin_js "${TMP_JS}"

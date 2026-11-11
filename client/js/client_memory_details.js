@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
 
                     // Populate details
-                    document.title = (mem.title || 'Memory') + ' - MemoryBook';
+                    document.title = (mem.title || 'Memory') + ' - Scrapbook';
                     document.getElementById('memTitle').textContent = mem.title;
                     document.getElementById('memDate').querySelector('span').textContent = mem.date;
                     if (mem.mood) {
@@ -108,7 +108,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } else {
                         document.getElementById('memLocation').classList.add('hidden');
                     }
-                    window.MemoryBookConfig.setTextWithBreaks(document.getElementById('memDesc'), mem.description || '');
+                    window.ScrapbookConfig.setTextWithBreaks(document.getElementById('memDesc'), mem.description || '');
 
                     const memTagsEl = document.getElementById('memTags');
                     memTagsEl.textContent = '';
@@ -165,8 +165,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (idx !== 0) slideDiv.style.display = 'none';
 
                             const rawUrl = typeof file === 'string' ? file : (file.url || '');
-                            const fUrl = window.MemoryBookConfig.resolveMediaUrl(rawUrl);
-                            const ext = window.MemoryBookConfig.getCleanExtension(fUrl);
+                            const fUrl = window.ScrapbookConfig.resolveMediaUrl(rawUrl);
+                            const ext = window.ScrapbookConfig.getCleanExtension(fUrl);
                             let fType = '';
                             if (typeof file === 'object' && file.type) {
                                 fType = file.type;
@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 slideDiv.appendChild(box);
                             }
 
-                            const rawDlUrl = (typeof file === 'object' && file.download_url) ? window.MemoryBookConfig.resolveMediaUrl(file.download_url) : fUrl;
+                            const rawDlUrl = (typeof file === 'object' && file.download_url) ? window.ScrapbookConfig.resolveMediaUrl(file.download_url) : fUrl;
                             const dlName = (typeof file === 'object' && (file.name || file.fileName)) || (typeof file === 'string' ? file.split('?')[0].split('/').pop() : 'download');
                             if (rawDlUrl) {
                                 const dlLink = document.createElement('a');

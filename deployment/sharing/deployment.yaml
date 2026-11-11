@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sharing-service
-  namespace: memorybook
+  name: scrapbook-sharing
+  namespace: scrapbook
   labels:
     app: sharing-service
     app.kubernetes.io/name: sharing-service
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/part-of: scrapbook
 spec:
   replicas: 1
   strategy:
@@ -22,11 +22,11 @@ spec:
       labels:
         app: sharing-service
         app.kubernetes.io/name: sharing-service
-        app.kubernetes.io/part-of: memorybook
+        app.kubernetes.io/part-of: scrapbook
     spec:
       containers:
-      - name: sharing-service
-        image: "<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/memory-book-sharing:<IMAGE_TAG>"
+      - name: scrapbook-sharing
+        image: "<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/scrapbook-sharing:<IMAGE_TAG>"
         imagePullPolicy: IfNotPresent
         ports:
         - name: http

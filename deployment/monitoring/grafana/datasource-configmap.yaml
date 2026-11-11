@@ -2,11 +2,11 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: grafana-datasources
-  namespace: memorybook
+  namespace: scrapbook
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/part-of: scrapbook
 data:
   datasources.yaml: |
     apiVersion: 1

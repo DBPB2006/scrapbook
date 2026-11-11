@@ -1,5 +1,5 @@
 # Storage resources: public HTTP static frontend S3 bucket, private media S3 bucket,
-# and five private ECR repositories for Memory Book microservices.
+# and five private ECR repositories for Scrapbook microservices.
 
 # --- 1. Frontend Website S3 Bucket (Public HTTP Website, Read Objects Only) ---
 

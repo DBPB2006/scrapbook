@@ -1,6 +1,6 @@
 /**
  * MongoDB Community Server Connection Foundation
- * Memory Book Platform - Shared Database Client Module
+ * Scrapbook Platform - Shared Database Client Module
  *
  * Provides a production-grade, process-level singleton connection pool,
  * URI/authSource resolution, bounded reconnect recovery, and idempotent
@@ -17,7 +17,7 @@ if (!globalThis.crypto) {
     globalThis.crypto = crypto.webcrypto || crypto;
 }
 
-// Target collection names for the Memory Book platform
+// Target collection names for the Scrapbook platform
 const COLLECTIONS = Object.freeze({
     USERS: 'users',
     MEMORIES: 'memories',
@@ -146,11 +146,11 @@ function uriHasExplicitAuthSource(uri) {
  * Resolves effective URI, target DB name, and authSource consistently across env & URI parameters.
  */
 function resolveDatabaseConfig(uri = null, databaseName = null, customOptions = {}) {
-    const targetUri = (uri || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/memorybook').trim();
+    const targetUri = (uri || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/scrapbook').trim();
     const uriDb = extractDatabaseFromUri(targetUri);
     const envDb = typeof process.env.MONGODB_DATABASE === 'string' ? process.env.MONGODB_DATABASE.trim() : '';
     const explicitDb = typeof databaseName === 'string' ? databaseName.trim() : '';
-    const targetDbName = explicitDb || envDb || uriDb || 'memorybook';
+    const targetDbName = explicitDb || envDb || uriDb || 'scrapbook';
 
     const envAuthSource = typeof process.env.MONGODB_AUTH_SOURCE === 'string' ? process.env.MONGODB_AUTH_SOURCE.trim() : '';
     let authSource = customOptions.authSource || '';
@@ -221,7 +221,7 @@ function buildClientOptions(overrides = {}) {
  * Establishes or reuses a singleton database connection pool.
  *
  * @param {string} [uri] Optional URI override (defaults to MONGODB_URI)
- * @param {string} [databaseName] Optional DB name override (defaults to MONGODB_DATABASE, URI path, or 'memorybook')
+ * @param {string} [databaseName] Optional DB name override (defaults to MONGODB_DATABASE, URI path, or 'scrapbook')
  * @param {object} [customOptions] Additional MongoClient options
  * @returns {Promise<{client: MongoClient, db: import('mongodb').Db}>}
  */
@@ -563,7 +563,7 @@ async function ensureIndex(collection, keys, options) {
 }
 
 /**
- * Initializes target collections and creates required indexes for the Memory Book domain.
+ * Initializes target collections and creates required indexes for the Scrapbook domain.
  * Safe and idempotent to run repeatedly across deployments and restarts.
  * Preserves the custom A–Z bucket_id compound index for user lookups.
  *

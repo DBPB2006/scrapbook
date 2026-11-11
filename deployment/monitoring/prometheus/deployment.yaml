@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prometheus
-  namespace: memorybook
+  name: scrapbook-prometheus
+  namespace: scrapbook
   labels:
     app: prometheus
     app.kubernetes.io/name: prometheus
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/part-of: scrapbook
 spec:
   replicas: 1
   strategy:
@@ -22,10 +22,10 @@ spec:
       labels:
         app: prometheus
         app.kubernetes.io/name: prometheus
-        app.kubernetes.io/part-of: memorybook
+        app.kubernetes.io/part-of: scrapbook
     spec:
       containers:
-      - name: prometheus
+      - name: scrapbook-prometheus
         image: prom/prometheus:v2.51.0
         args:
         - "--config.file=/etc/prometheus/prometheus.yml"

@@ -1,6 +1,6 @@
 /**
  * MongoDB Store for Sharing Service
- * Memory Book Platform - Sharing Microservice Persistence Layer
+ * Scrapbook Platform - Sharing Microservice Persistence Layer
  *
  * Provides persistent operations for:
  * 1. Shared Memories (`shared_memories` collection)
@@ -51,7 +51,7 @@ async function load_all_shared_memories() {
     try {
         return await collection.find({}, { projection: { _id: 0 } }).toArray();
     } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB load_all_shared_memories error:', err.message);
+        console.error('Scrapbook Sharing: MongoDB load_all_shared_memories error:', err.message);
         throw new Error(`Failed to load shared memories from MongoDB: ${err.message}`);
     }
 }
@@ -77,7 +77,7 @@ async function get_user_shared_memories(email, options = {}) {
         }
         return await cursor.toArray();
     } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB get_user_shared_memories error:', err.message);
+        console.error('Scrapbook Sharing: MongoDB get_user_shared_memories error:', err.message);
         throw new Error(`Failed to query user shared memories from MongoDB: ${err.message}`);
     }
 }
@@ -97,7 +97,7 @@ async function get_received_shared_memories(toEmail) {
         }
         return await cursor.toArray();
     } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB get_received_shared_memories error:', err.message);
+        console.error('Scrapbook Sharing: MongoDB get_received_shared_memories error:', err.message);
         throw new Error(`Failed to query received shared memories from MongoDB: ${err.message}`);
     }
 }
@@ -112,7 +112,7 @@ async function get_shared_memory_by_record_id(memoryId) {
     try {
         return await collection.findOne({ memory_id: memoryId.trim() }, { projection: { _id: 0 } });
     } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB get_shared_memory_by_record_id error:', err.message);
+        console.error('Scrapbook Sharing: MongoDB get_shared_memory_by_record_id error:', err.message);
         throw new Error(`Failed to query shared memory by record ID from MongoDB: ${err.message}`);
     }
 }
@@ -130,7 +130,7 @@ async function get_shared_memories_by_original_id(originalMemoryId) {
             .sort({ created_at: -1, date: -1 })
             .toArray();
     } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB get_shared_memories_by_original_id error:', err.message);
+        console.error('Scrapbook Sharing: MongoDB get_shared_memories_by_original_id error:', err.message);
         throw new Error(`Failed to query shared memories by original ID from MongoDB: ${err.message}`);
     }
 }
@@ -214,7 +214,7 @@ async function add_shared_memory(record) {
         const { _id, ...cleanRecord } = record;
         return cleanRecord;
     } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB add_shared_memory error:', err.message);
+        console.error('Scrapbook Sharing: MongoDB add_shared_memory error:', err.message);
         throw new Error(`Failed to persist shared memory to MongoDB: ${err.message}`);
     }
 }
@@ -254,7 +254,7 @@ async function mark_shared_memory_seen(memoryId, toEmail) {
         }
         return false;
     } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB mark_shared_memory_seen error:', err.message);
+        console.error('Scrapbook Sharing: MongoDB mark_shared_memory_seen error:', err.message);
         throw new Error(`Failed to mark shared memory seen in MongoDB: ${err.message}`);
     }
 }
@@ -284,7 +284,7 @@ async function get_user_capsules(email, options = {}) {
         }
         return await cursor.toArray();
     } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB get_user_capsules error:', err.message);
+        console.error('Scrapbook Sharing: MongoDB get_user_capsules error:', err.message);
         throw new Error(`Failed to query user capsules from MongoDB: ${err.message}`);
     }
 }
@@ -299,7 +299,7 @@ async function get_capsule_by_id(id) {
     try {
         return await collection.findOne({ id }, { projection: { _id: 0 } });
     } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB get_capsule_by_id error:', err.message);
+        console.error('Scrapbook Sharing: MongoDB get_capsule_by_id error:', err.message);
         throw new Error(`Failed to query time capsule by ID from MongoDB: ${err.message}`);
     }
 }
@@ -317,7 +317,7 @@ async function get_locked_capsules() {
         }
         return await cursor.toArray();
     } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB get_locked_capsules error:', err.message);
+        console.error('Scrapbook Sharing: MongoDB get_locked_capsules error:', err.message);
         throw new Error(`Failed to query locked capsules from MongoDB: ${err.message}`);
     }
 }
@@ -342,7 +342,7 @@ async function add_capsule(capsule) {
         const { _id, ...cleanCapsule } = capsule;
         return cleanCapsule;
     } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB add_capsule error:', err.message);
+        console.error('Scrapbook Sharing: MongoDB add_capsule error:', err.message);
         throw new Error(`Failed to persist time capsule to MongoDB: ${err.message}`);
     }
 }
@@ -361,7 +361,7 @@ async function unlock_capsule(id) {
         );
         return res.modifiedCount > 0;
     } catch (err) {
-        console.error('MemoryBook Sharing: MongoDB unlock_capsule error:', err.message);
+        console.error('Scrapbook Sharing: MongoDB unlock_capsule error:', err.message);
         throw new Error(`Failed to unlock time capsule in MongoDB: ${err.message}`);
     }
 }

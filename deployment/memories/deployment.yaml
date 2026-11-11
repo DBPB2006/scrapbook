@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: memories-service
-  namespace: memorybook
+  name: scrapbook-memories
+  namespace: scrapbook
   labels:
     app: memories-service
     app.kubernetes.io/name: memories-service
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/part-of: scrapbook
 spec:
   replicas: 1
   strategy:
@@ -22,11 +22,11 @@ spec:
       labels:
         app: memories-service
         app.kubernetes.io/name: memories-service
-        app.kubernetes.io/part-of: memorybook
+        app.kubernetes.io/part-of: scrapbook
     spec:
       containers:
-      - name: memories-service
-        image: "<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/memory-book-memories:<IMAGE_TAG>"
+      - name: scrapbook-memories
+        image: "<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/scrapbook-memories:<IMAGE_TAG>"
         imagePullPolicy: IfNotPresent
         ports:
         - name: http

@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     let imgSrc = `https://ui-avatars.com/api/?name=${encodeURIComponent(fromName)}&background=A8C8EC&color=fff`;
                     const rawReqImg = req.from_profile_pic || req.image_url;
                     if (rawReqImg) {
-                        const resolved = window.MemoryBookConfig.resolveMediaUrl(rawReqImg);
+                        const resolved = window.ScrapbookConfig.resolveMediaUrl(rawReqImg);
                         if (resolved) imgSrc = resolved;
                     }
 
@@ -161,7 +161,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     const safeName = f.name || f.username || 'Friend';
                     let imgSrc = `https://ui-avatars.com/api/?name=${encodeURIComponent(safeName)}`;
                     if (f.image_url) {
-                        const resolved = window.MemoryBookConfig.resolveMediaUrl(f.image_url);
+                        const resolved = window.ScrapbookConfig.resolveMediaUrl(f.image_url);
                         if (resolved) imgSrc = resolved;
                     }
 

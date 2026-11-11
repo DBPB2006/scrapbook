@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 try {
                     const response = await axios.post('/api/login', { email, password });
                     if (response.data.token) {
-                        sessionStorage.setItem('mb_access_token', response.data.token);
+                        sessionStorage.setItem('scrapbook_access_token', response.data.token);
                     }
                     if (response.data.success) {
                         showMessage('success', 'Login successful! Redirecting...');

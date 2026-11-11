@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     let imgUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.first_name + ' ' + user.last_name)}&background=A8C8EC&color=fff&size=200`;
                     if (user.profile_pic) {
-                        const resolved = window.MemoryBookConfig.resolveMediaUrl(user.profile_pic);
+                        const resolved = window.ScrapbookConfig.resolveMediaUrl(user.profile_pic);
                         if (resolved) imgUrl = resolved;
                     }
                     document.getElementById('avatarImg').src = imgUrl;
@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const fName = friend.name || friend.email || 'Friend';
                             let fImg = `https://ui-avatars.com/api/?name=${encodeURIComponent(friend.name || 'U')}&background=random`;
                             if (friend.image_url) {
-                                const resolved = window.MemoryBookConfig.resolveMediaUrl(friend.image_url);
+                                const resolved = window.ScrapbookConfig.resolveMediaUrl(friend.image_url);
                                 if (resolved) fImg = resolved;
                             }
 
@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         headers: { 'Content-Type': 'multipart/form-data' }
                     });
                     if (res.data && res.data.token) {
-                        sessionStorage.setItem('mb_access_token', res.data.token);
+                        sessionStorage.setItem('scrapbook_access_token', res.data.token);
                     }
                     showMessage('success', res.data.message);
                     loadProfile();
@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (confirm('Are you sure you want to delete your account? This action cannot be undone and you will lose all your memories.')) {
                     try {
                         await axios.post('/api/users/profile/delete_account');
-                        sessionStorage.removeItem('mb_access_token');
+                        sessionStorage.removeItem('scrapbook_access_token');
                         window.location.href="/signup.html?deleted=1";
                     } catch (err) {
                         showMessage('error', 'Failed to delete account');

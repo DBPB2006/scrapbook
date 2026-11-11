@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: social-service
-  namespace: memorybook
+  name: scrapbook-social
+  namespace: scrapbook
   labels:
     app: social-service
     app.kubernetes.io/name: social-service
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/part-of: scrapbook
 spec:
   replicas: 1
   strategy:
@@ -22,11 +22,11 @@ spec:
       labels:
         app: social-service
         app.kubernetes.io/name: social-service
-        app.kubernetes.io/part-of: memorybook
+        app.kubernetes.io/part-of: scrapbook
     spec:
       containers:
-      - name: social-service
-        image: "<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/memory-book-social:<IMAGE_TAG>"
+      - name: scrapbook-social
+        image: "<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/scrapbook-social:<IMAGE_TAG>"
         imagePullPolicy: IfNotPresent
         ports:
         - name: http

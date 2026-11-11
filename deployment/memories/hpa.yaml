@@ -1,17 +1,17 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: memories-service-hpa
-  namespace: memorybook
+  name: scrapbook-memories-hpa
+  namespace: scrapbook
   labels:
     app: memories-service
     app.kubernetes.io/name: memories-service
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/part-of: scrapbook
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: memories-service
+    name: scrapbook-memories
   minReplicas: 1
   maxReplicas: 1
   metrics:

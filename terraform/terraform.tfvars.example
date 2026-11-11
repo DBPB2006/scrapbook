@@ -1,9 +1,9 @@
-# Example non-sensitive variable configuration for Memory Book.
+# Example non-sensitive variable configuration for Scrapbook.
 # Copy to `terraform.tfvars` (`*.tfvars` is gitignored) and customize as needed.
 
 aws_region              = "ap-south-1"
-environment             = "trial"
-project_name            = "memory-book"
+environment             = "production"
+project_name            = "scrapbook"
 availability_zones      = ["ap-south-1a", "ap-south-1b"]
 vpc_cidr                = "10.0.0.0/16"
 public_subnet_cidrs     = ["10.0.1.0/24", "10.0.2.0/24"]
@@ -16,6 +16,6 @@ mongodb_instance_type    = "t3.small"
 mongodb_data_volume_size = 8
 
 additional_tags = {
-  Owner = "memory-book"
+  Owner = "scrapbook"
 }
 

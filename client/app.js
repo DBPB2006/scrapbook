@@ -61,7 +61,7 @@ async function loadNavbar() {
         }
     } catch (err) {
         if (err.response && err.response.status === 401) {
-            sessionStorage.removeItem('mb_access_token');
+            sessionStorage.removeItem('scrapbook_access_token');
             window.location.href = "/login.html";
         }
     }
@@ -73,7 +73,7 @@ async function logout() {
     } catch (e) {
         console.error('Logout failed', e);
     } finally {
-        sessionStorage.removeItem('mb_access_token');
+        sessionStorage.removeItem('scrapbook_access_token');
         window.location.href = "/login.html";
     }
 }

@@ -47,7 +47,7 @@ async function find_pending_between(email1, email2) {
             ]
         });
     } catch (err) {
-        console.error('MemoryBook Social: MongoDB find_pending_between error:', err.message);
+        console.error('Scrapbook Social: MongoDB find_pending_between error:', err.message);
         throw new Error(`Failed to query pending friend request from MongoDB: ${err.message}`);
     }
 }
@@ -64,7 +64,7 @@ async function get_incoming_requests(toEmail) {
     try {
         return await collection.find({ to: target, status: 'pending' }).toArray();
     } catch (err) {
-        console.error('MemoryBook Social: MongoDB get_incoming_requests error:', err.message);
+        console.error('Scrapbook Social: MongoDB get_incoming_requests error:', err.message);
         throw new Error(`Failed to query incoming friend requests from MongoDB: ${err.message}`);
     }
 }
@@ -81,7 +81,7 @@ async function get_outgoing_requests(fromEmail) {
     try {
         return await collection.find({ from: source, status: 'pending' }).toArray();
     } catch (err) {
-        console.error('MemoryBook Social: MongoDB get_outgoing_requests error:', err.message);
+        console.error('Scrapbook Social: MongoDB get_outgoing_requests error:', err.message);
         throw new Error(`Failed to query outgoing friend requests from MongoDB: ${err.message}`);
     }
 }
@@ -97,7 +97,7 @@ async function get_request_by_id(id) {
     try {
         return await collection.findOne({ id });
     } catch (err) {
-        console.error('MemoryBook Social: MongoDB get_request_by_id error:', err.message);
+        console.error('Scrapbook Social: MongoDB get_request_by_id error:', err.message);
         throw new Error(`Failed to query friend request by ID from MongoDB: ${err.message}`);
     }
 }
@@ -122,7 +122,7 @@ async function add_request(request) {
         );
         return request;
     } catch (err) {
-        console.error('MemoryBook Social: MongoDB add_request error:', err.message);
+        console.error('Scrapbook Social: MongoDB add_request error:', err.message);
         const wrapped = new Error(`Failed to persist friend request to MongoDB: ${err.message}`);
         if (err && err.code !== undefined) wrapped.code = err.code;
         wrapped.originalError = err;
@@ -166,7 +166,7 @@ async function claim_pending_request(id, recipientEmail, targetStatus = 'accepte
         }
         return doc;
     } catch (err) {
-        console.error('MemoryBook Social: MongoDB claim_pending_request error:', err.message);
+        console.error('Scrapbook Social: MongoDB claim_pending_request error:', err.message);
         throw new Error(`Failed to transition pending friend request in MongoDB: ${err.message}`);
     }
 }
@@ -196,7 +196,7 @@ async function revert_request_status(id, expectedStatus = 'accepted', targetStat
         );
         return res.matchedCount > 0;
     } catch (err) {
-        console.error('MemoryBook Social: MongoDB revert_request_status error:', err.message);
+        console.error('Scrapbook Social: MongoDB revert_request_status error:', err.message);
         throw new Error(`Failed to revert friend request status in MongoDB: ${err.message}`);
     }
 }
@@ -217,7 +217,7 @@ async function delete_request(id, fromEmail, options = {}) {
         const res = await collection.deleteOne(filter);
         return res.deletedCount > 0;
     } catch (err) {
-        console.error('MemoryBook Social: MongoDB delete_request error:', err.message);
+        console.error('Scrapbook Social: MongoDB delete_request error:', err.message);
         throw new Error(`Failed to delete friend request from MongoDB: ${err.message}`);
     }
 }

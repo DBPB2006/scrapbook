@@ -59,7 +59,7 @@ async function load_users(options = {}) {
         }
         return buckets;
     } catch (err) {
-        console.error('MemoryBook Auth: MongoDB load_users error:', err.message);
+        console.error('Scrapbook Auth: MongoDB load_users error:', err.message);
         throw new Error(`Failed to load users from MongoDB: ${err.message}`);
     }
 }
@@ -84,7 +84,7 @@ async function list_users_public() {
             }
         }).toArray();
     } catch (err) {
-        console.error('MemoryBook Auth: MongoDB list_users_public error:', err.message);
+        console.error('Scrapbook Auth: MongoDB list_users_public error:', err.message);
         throw new Error(`Failed to list users from MongoDB: ${err.message}`);
     }
 }
@@ -134,7 +134,7 @@ async function find_users_by_emails(emails = [], options = {}) {
 
         return map;
     } catch (err) {
-        console.error('MemoryBook Auth: MongoDB find_users_by_emails error:', err.message);
+        console.error('Scrapbook Auth: MongoDB find_users_by_emails error:', err.message);
         throw new Error(`Failed to query users by email from MongoDB: ${err.message}`);
     }
 }
@@ -161,7 +161,7 @@ async function get_user(email, session = null) {
         }
         return user || null;
     } catch (err) {
-        console.error('MemoryBook Auth: MongoDB get_user error:', err.message);
+        console.error('Scrapbook Auth: MongoDB get_user error:', err.message);
         throw new Error(`Failed to query user from MongoDB: ${err.message}`);
     }
 }
@@ -191,7 +191,7 @@ async function add_user(email, details, session = null) {
         );
         return true;
     } catch (err) {
-        console.error('MemoryBook Auth: MongoDB add_user error:', err.message);
+        console.error('Scrapbook Auth: MongoDB add_user error:', err.message);
         throw new Error(`Failed to persist user to MongoDB: ${err.message}`);
     }
 }
@@ -213,7 +213,7 @@ async function username_exists(username, session = null) {
         }, opts);
         return !!user;
     } catch (err) {
-        console.error('MemoryBook Auth: MongoDB username_exists error:', err.message);
+        console.error('Scrapbook Auth: MongoDB username_exists error:', err.message);
         throw new Error(`Failed to query username in MongoDB: ${err.message}`);
     }
 }
@@ -238,7 +238,7 @@ async function remove_user(email, session = null) {
         }, opts);
         return regexRes.deletedCount > 0;
     } catch (err) {
-        console.error('MemoryBook Auth: MongoDB remove_user error:', err.message);
+        console.error('Scrapbook Auth: MongoDB remove_user error:', err.message);
         throw new Error(`Failed to remove user from MongoDB: ${err.message}`);
     }
 }

@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: grafana
-  namespace: memorybook
+  name: scrapbook-grafana
+  namespace: scrapbook
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/part-of: scrapbook
 spec:
   replicas: 1
   strategy:
@@ -22,10 +22,10 @@ spec:
       labels:
         app: grafana
         app.kubernetes.io/name: grafana
-        app.kubernetes.io/part-of: memorybook
+        app.kubernetes.io/part-of: scrapbook
     spec:
       containers:
-      - name: grafana
+      - name: scrapbook-grafana
         image: grafana/grafana:10.4.0
         ports:
         - name: http
@@ -53,8 +53,8 @@ spec:
           mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
           subPath: dashboards.yaml
         - name: dashboard-volume
-          mountPath: /etc/grafana/dashboards/memory-book.json
-          subPath: memory-book.json
+          mountPath: /etc/grafana/dashboards/scrapbook.json
+          subPath: scrapbook.json
         - name: storage-volume
           mountPath: /var/lib/grafana
         resources:

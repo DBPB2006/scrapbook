@@ -33,7 +33,7 @@ async function load_all_memories(options = {}) {
         const findOpts = (options && options.projection) ? { projection: options.projection } : {};
         return await collection.find({}, findOpts).toArray();
     } catch (err) {
-        console.error('MemoryBook Memories: MongoDB load_all_memories error:', err.message);
+        console.error('Scrapbook Memories: MongoDB load_all_memories error:', err.message);
         throw new Error(`Failed to load memories from MongoDB: ${err.message}`);
     }
 }
@@ -68,7 +68,7 @@ async function get_user_memories(ownerEmail, options = {}) {
         }
         return userMemories || [];
     } catch (err) {
-        console.error('MemoryBook Memories: MongoDB get_user_memories error:', err.message);
+        console.error('Scrapbook Memories: MongoDB get_user_memories error:', err.message);
         throw new Error(`Failed to query user memories from MongoDB: ${err.message}`);
     }
 }
@@ -152,7 +152,7 @@ async function get_user_memories_paginated(ownerEmail, { order = 'asc', page: pa
         const paged = await cursor.toArray();
         return { memories: paged || [], pagination };
     } catch (err) {
-        console.error('MemoryBook Memories: MongoDB get_user_memories_paginated error:', err.message);
+        console.error('Scrapbook Memories: MongoDB get_user_memories_paginated error:', err.message);
         throw new Error(`Failed to query paginated user memories from MongoDB: ${err.message}`);
     }
 }
@@ -167,7 +167,7 @@ async function get_memory_by_id(memoryId) {
     try {
         return await collection.findOne({ memory_id: memoryId });
     } catch (err) {
-        console.error('MemoryBook Memories: MongoDB get_memory_by_id error:', err.message);
+        console.error('Scrapbook Memories: MongoDB get_memory_by_id error:', err.message);
         throw new Error(`Failed to query memory by ID from MongoDB: ${err.message}`);
     }
 }
@@ -188,7 +188,7 @@ async function add_memory(memory) {
         );
         return memory;
     } catch (err) {
-        console.error('MemoryBook Memories: MongoDB add_memory error:', err.message);
+        console.error('Scrapbook Memories: MongoDB add_memory error:', err.message);
         throw new Error(`Failed to persist memory to MongoDB: ${err.message}`);
     }
 }
@@ -212,7 +212,7 @@ async function update_memory(memoryId, ownerEmail, updates) {
         }
         return await collection.findOne(filter, { projection: { _id: 0 } });
     } catch (err) {
-        console.error('MemoryBook Memories: MongoDB update_memory error:', err.message);
+        console.error('Scrapbook Memories: MongoDB update_memory error:', err.message);
         throw new Error(`Failed to update memory in MongoDB: ${err.message}`);
     }
 }
@@ -229,7 +229,7 @@ async function delete_memory(memoryId, ownerEmail) {
         const res = await collection.deleteOne({ memory_id: memoryId, owner: normalized });
         return res.deletedCount > 0;
     } catch (err) {
-        console.error('MemoryBook Memories: MongoDB delete_memory error:', err.message);
+        console.error('Scrapbook Memories: MongoDB delete_memory error:', err.message);
         throw new Error(`Failed to delete memory from MongoDB: ${err.message}`);
     }
 }

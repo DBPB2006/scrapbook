@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Main Details
         document.getElementById('mTitle').textContent = mem.memory_title || mem.title || 'Memory';
         document.getElementById('mDate').textContent = mem.date || '';
-        window.MemoryBookConfig.setTextWithBreaks(document.getElementById('mDesc'), mem.description || mem.message || '');
+        window.ScrapbookConfig.setTextWithBreaks(document.getElementById('mDesc'), mem.description || mem.message || '');
         document.getElementById('mCreator').textContent = mem.from_username || mem.from;
 
         // Show shared message if distinct from description
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (msgContainer && msgEl) {
             if (mem.message && mem.description && mem.message.trim() !== mem.description.trim()) {
                 msgContainer.style.display = 'block';
-                window.MemoryBookConfig.setTextWithBreaks(msgEl, mem.message);
+                window.ScrapbookConfig.setTextWithBreaks(msgEl, mem.message);
             } else {
                 msgContainer.style.display = 'none';
             }
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const userDescEl = document.getElementById('mUserDesc');
             if (descSec && userDescEl) {
                 descSec.classList.remove('hidden');
-                window.MemoryBookConfig.setTextWithBreaks(userDescEl, mem.description);
+                window.ScrapbookConfig.setTextWithBreaks(userDescEl, mem.description);
             }
         }
 
@@ -160,8 +160,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (idx !== 0) slide.style.display = 'none';
 
                 const rawUrl = typeof mPath === 'string' ? mPath : (mPath.url || mPath.preview_url || mPath.path || '');
-                const src = window.MemoryBookConfig.resolveMediaUrl(rawUrl);
-                const ext = window.MemoryBookConfig.getCleanExtension(src);
+                const src = window.ScrapbookConfig.resolveMediaUrl(rawUrl);
+                const ext = window.ScrapbookConfig.getCleanExtension(src);
                 let mType = (typeof mPath === 'object' && (mPath.type || mPath.mimeType)) || '';
                 if (!mType) {
                     if(['jpg','jpeg','png','gif','webp'].includes(ext)) mType = 'image/jpeg';
@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     slide.appendChild(box);
                 }
 
-                const dlUrl = (typeof mPath === 'object' && mPath.download_url) ? window.MemoryBookConfig.resolveMediaUrl(mPath.download_url) : src;
+                const dlUrl = (typeof mPath === 'object' && mPath.download_url) ? window.ScrapbookConfig.resolveMediaUrl(mPath.download_url) : src;
                 const dlName = (typeof mPath === 'object' && (mPath.fileName || mPath.name)) || (typeof rawUrl === 'string' ? rawUrl.split('?')[0].split('/').pop() : 'download');
                 if (dlUrl) {
                     const dlLink = document.createElement('a');

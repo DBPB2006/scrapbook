@@ -198,7 +198,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         };
 
-        const LOCATIONIQ_API_KEY = (window.MemoryBookConfig && window.MemoryBookConfig.LOCATIONIQ_API_KEY) || '';
+        const LOCATIONIQ_API_KEY = (window.ScrapbookConfig && window.ScrapbookConfig.LOCATIONIQ_API_KEY) || '';
         function geocodeLocation(location) {
             if (!LOCATIONIQ_API_KEY) return Promise.resolve(null);
             const cacheKey = 'geocode_' + location;

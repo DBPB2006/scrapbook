@@ -1,5 +1,5 @@
 /**
- * Memory Book - Centralized Frontend Configuration
+ * Scrapbook - Centralized Frontend Configuration
  * Manages API Base URL, LocationIQ browser key, JWT Bearer authentication, media resolution, and third-party API configs.
  *
  * In AWS production deployments, Jenkins populates the deployed API_BASE_URL and
@@ -143,7 +143,7 @@
     }
 
     // Single unified global configuration object
-    window.MemoryBookConfig = {
+    window.ScrapbookConfig = {
         API_BASE_URL: API_BASE_URL,
         LOCATIONIQ_API_KEY: LOCATIONIQ_API_KEY,
         sanitizeUrl: sanitizeUrl,
@@ -161,7 +161,7 @@
         // Request Interceptor: Attach JWT Bearer token only to internal backend requests
         axios.interceptors.request.use(
             function (config) {
-                const token = sessionStorage.getItem('mb_access_token');
+                const token = sessionStorage.getItem('scrapbook_access_token');
                 if (token) {
                     const url = config.url || '';
                     // Never send JWT to external APIs, S3 presigned URLs, or unrelated domains
@@ -182,7 +182,7 @@
         axios.interceptors.response.use(
             function (response) {
                 if (response.data && response.data.token) {
-                    sessionStorage.setItem('mb_access_token', response.data.token);
+                    sessionStorage.setItem('scrapbook_access_token', response.data.token);
                 }
                 return response;
             },
@@ -191,7 +191,7 @@
                     const path = window.location.pathname.toLowerCase();
                     const isPublic = path.endsWith('/login.html') || path.endsWith('/signup.html') || path.endsWith('/index.html') || path === '/' || path === '';
                     if (!isPublic) {
-                        sessionStorage.removeItem('mb_access_token');
+                        sessionStorage.removeItem('scrapbook_access_token');
                         window.location.href = '/login.html';
                     }
                 }

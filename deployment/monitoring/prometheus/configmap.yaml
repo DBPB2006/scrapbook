@@ -2,11 +2,11 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-config
-  namespace: memorybook
+  namespace: scrapbook
   labels:
     app: prometheus
     app.kubernetes.io/name: prometheus
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/part-of: scrapbook
 data:
   prometheus.yml: |
     global:
@@ -18,7 +18,7 @@ data:
         metrics_path: /metrics
         dns_sd_configs:
           - names:
-              - 'auth-service-metrics.memorybook.svc.cluster.local'
+              - 'auth-service-metrics.scrapbook.svc.cluster.local'
             type: 'A'
             port: 3001
             refresh_interval: 15s
@@ -27,7 +27,7 @@ data:
         metrics_path: /metrics
         dns_sd_configs:
           - names:
-              - 'memories-service-metrics.memorybook.svc.cluster.local'
+              - 'memories-service-metrics.scrapbook.svc.cluster.local'
             type: 'A'
             port: 3002
             refresh_interval: 15s
@@ -36,7 +36,7 @@ data:
         metrics_path: /metrics
         dns_sd_configs:
           - names:
-              - 'social-service-metrics.memorybook.svc.cluster.local'
+              - 'social-service-metrics.scrapbook.svc.cluster.local'
             type: 'A'
             port: 3003
             refresh_interval: 15s
@@ -50,7 +50,7 @@ data:
         metrics_path: /metrics
         dns_sd_configs:
           - names:
-              - 'gateway-service-metrics.memorybook.svc.cluster.local'
+              - 'gateway-service-metrics.scrapbook.svc.cluster.local'
             type: 'A'
             port: 3091
             refresh_interval: 15s

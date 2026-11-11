@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 previewImg = firstImg ? (firstImg.url || firstImg.preview_url || firstImg.path) : (m.media[0].url || m.media[0].preview_url || m.media[0].path);
             }
-            const resolvedPreview = previewImg ? window.MemoryBookConfig.resolveMediaUrl(previewImg) : '';
+            const resolvedPreview = previewImg ? window.ScrapbookConfig.resolveMediaUrl(previewImg) : '';
             if (resolvedPreview) {
                 memImg.src = resolvedPreview;
                 memImg.classList.remove('hidden');
@@ -321,8 +321,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     allRecentMedia.forEach((att, idx) => {
                         const rawUrl = typeof att === 'string' ? att : (att.url || att.preview_url || att.path || '');
-                        const src = window.MemoryBookConfig.resolveMediaUrl(rawUrl);
-                        const ext = window.MemoryBookConfig.getCleanExtension(src);
+                        const src = window.ScrapbookConfig.resolveMediaUrl(rawUrl);
+                        const ext = window.ScrapbookConfig.getCleanExtension(src);
                         let type = (typeof att === 'object' && (att.type || att.mimeType)) || '';
                         if (!type) {
                             if (['jpg','jpeg','png','gif','webp'].includes(ext)) type = 'image/jpeg';
@@ -336,7 +336,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         slide.dataset.index = String(idx);
                         if (idx !== 0) slide.style.display = 'none';
 
-                        const dlUrl = (typeof att === 'object' && att.download_url) ? window.MemoryBookConfig.resolveMediaUrl(att.download_url) : src;
+                        const dlUrl = (typeof att === 'object' && att.download_url) ? window.ScrapbookConfig.resolveMediaUrl(att.download_url) : src;
                         const dlName = (typeof att === 'object' && (att.fileName || att.name)) || (typeof rawUrl === 'string' ? rawUrl.split('?')[0].split('/').pop() : 'attachment');
 
                         if (type.startsWith('image/') && src) {

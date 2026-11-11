@@ -2,11 +2,11 @@ apiVersion: v1
 kind: Service
 metadata:
   name: gateway-service
-  namespace: memorybook
+  namespace: scrapbook
   labels:
     app: gateway-service
     app.kubernetes.io/name: gateway-service
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/part-of: scrapbook
 spec:
   type: NodePort
   selector:
@@ -22,11 +22,11 @@ apiVersion: v1
 kind: Service
 metadata:
   name: gateway-service-metrics
-  namespace: memorybook
+  namespace: scrapbook
   labels:
     app: gateway-service
     app.kubernetes.io/name: gateway-service
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/part-of: scrapbook
 spec:
   clusterIP: None
   selector:

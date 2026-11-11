@@ -15,7 +15,7 @@ provider "aws" {
   default_tags {
     tags = merge(
       {
-        Project     = "Memory Book"
+        Project     = var.project_name
         Environment = var.environment
         ManagedBy   = "Terraform"
       },

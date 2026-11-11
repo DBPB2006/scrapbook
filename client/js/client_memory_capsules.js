@@ -284,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const msgIcon = document.createElement('i');
                 msgIcon.className = 'fas fa-comment-dots mr-1';
                 msgDiv.appendChild(msgIcon);
-                window.MemoryBookConfig.setTextWithBreaks(msgDiv, c.message || '', { append: true });
+                window.ScrapbookConfig.setTextWithBreaks(msgDiv, c.message || '', { append: true });
                 card.appendChild(msgDiv);
 
                 if (c.description) {
@@ -293,7 +293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const descIcon = document.createElement('i');
                     descIcon.className = 'fas fa-sticky-note mr-1';
                     descDiv.appendChild(descIcon);
-                    window.MemoryBookConfig.setTextWithBreaks(descDiv, c.description, { append: true });
+                    window.ScrapbookConfig.setTextWithBreaks(descDiv, c.description, { append: true });
                     card.appendChild(descDiv);
                 }
 

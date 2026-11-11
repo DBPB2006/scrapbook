@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: memorybook
+  name: scrapbook
   labels:
-    app.kubernetes.io/name: memorybook
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/name: scrapbook
+    app.kubernetes.io/part-of: scrapbook
 

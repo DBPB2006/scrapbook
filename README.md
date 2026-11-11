@@ -1,11 +1,11 @@
-# Memory Book — A DSA-Driven Cloud-Native Social Memory Platform
+# Scrapbook — A DSA-Driven Cloud-Native Social Memory Platform
 
 [![CI/CD](https://img.shields.io/badge/CI%2FCD-Jenkins-blue?logo=jenkins)](./Jenkinsfile)
 [![Kubernetes](https://img.shields.io/badge/Orchestration-K3s-informational?logo=kubernetes)](./deployment)
 [![IaC](https://img.shields.io/badge/IaC-Terraform-purple?logo=terraform)](./terraform)
 [![Monitoring](https://img.shields.io/badge/Monitoring-Prometheus%20%2B%20Grafana-red?logo=prometheus)](./deployment/monitoring)
 
-Memory Book is a cloud-native social memory platform that enables users to create, organize, and selectively share personal memories and time capsules. The backend runs as five Node.js/Express microservices orchestrated on single-node **K3s**, provisioned on AWS with **Terraform**, deployed via **Jenkins** ([`Jenkinsfile`](./Jenkinsfile)), backed by self-hosted **MongoDB Community Edition 8.0** on EC2 and **Amazon S3**, and monitored with **Prometheus** and **Grafana**.
+Scrapbook is a cloud-native social memory platform that enables users to create, organize, and selectively share personal memories and time capsules. The backend runs as five Node.js/Express microservices orchestrated on single-node **K3s** (`scrapbook` namespace), provisioned on AWS with **Terraform**, deployed via **Jenkins** ([`Jenkinsfile`](./Jenkinsfile), pipeline job `scrapbook-pipeline`), backed by self-hosted **MongoDB Community Edition 8.0** on EC2 (`scrapbook` database) and **Amazon S3**, and monitored with **Prometheus** and **Grafana**.
 
 ---
 
@@ -36,12 +36,12 @@ Memory Book is a cloud-native social memory platform that enables users to creat
 ```
 
 ### Core AWS & Cluster Components
-- **Frontend Hosting**: Public S3 Static Website bucket (`client/` HTML, CSS, Vanilla JS) with public `s3:GetObject` read policy.
-- **Public API Ingress**: Internet-facing HTTP Application Load Balancer (port `80` only) forwarding to K3s NodePort `30090`.
-- **Single-Node K3s EC2 (`private_app` subnet)**: Runs `gateway-service`, `auth-service`, `memories-service`, `social-service`, `sharing-service`, `prometheus`, `grafana`, and K3s `metrics-server` (Traefik disabled).
-- **Jenkins EC2 (`private_app` subnet)**: SSM-managed build & deployment server (`docker`, `node`, `trivy`, `kubectl`) authenticating via its EC2 IAM role (no static AWS keys).
-- **Database EC2 (`private_db` subnet)**: MongoDB Community Edition 8.0 with encrypted XFS EBS data volume (`/data/mongodb`, `prevent_destroy = true`).
-- **Private Media S3 & ECR**: Private AES256-encrypted media S3 bucket (accessed via IAM role + presigned URLs) and 5 immutable-tag private ECR repositories.
+- **Frontend Hosting**: Public S3 Static Website bucket (`scrapbook-frontend-<account_id>`, serving `client/` HTML, CSS, Vanilla JS) with public `s3:GetObject` read policy.
+- **Public API Ingress**: Internet-facing HTTP Application Load Balancer (`scrapbook-alb`, port `80` only) forwarding to K3s NodePort `30090`.
+- **Single-Node K3s EC2 (`scrapbook-k3s`, `private_app` subnet)**: Runs `scrapbook-gateway`, `scrapbook-auth`, `scrapbook-memories`, `scrapbook-social`, `scrapbook-sharing`, `scrapbook-prometheus`, and `scrapbook-grafana` Deployments in namespace `scrapbook` (with internal Services `gateway-service`, `auth-service`, `memories-service`, `social-service`, `sharing-service`, `prometheus-service`, `grafana-service`), plus K3s `metrics-server` (Traefik disabled).
+- **Jenkins EC2 (`scrapbook-jenkins`, `private_app` subnet)**: SSM-managed build & deployment server (`docker`, `node`, `trivy`, `kubectl`) running `scrapbook-pipeline` and authenticating via its EC2 IAM role (no static AWS keys).
+- **Database EC2 (`scrapbook-mongodb`, `private_db` subnet)**: MongoDB Community Edition 8.0 (`scrapbook` database) with encrypted XFS EBS data volume (`scrapbook-mongodb-data` mounted at `/data/mongodb`, `prevent_destroy = true`).
+- **Private Media S3 & ECR**: Private AES256-encrypted media S3 bucket (`scrapbook-media-<account_id>`, accessed via IAM role + presigned URLs) and 5 immutable-tag private ECR repositories (`scrapbook-gateway`, `scrapbook-auth`, `scrapbook-memories`, `scrapbook-social`, `scrapbook-sharing`).
 
 ### Microservices & DSA Implementations
 
@@ -69,7 +69,7 @@ Shared backend modules live in [`shared/`](./shared):
    ```
    http://<frontend_website_endpoint>
    ```
-   (for example, `http://memory-book-trial-frontend-<account_id>.s3-website.ap-south-1.amazonaws.com`).
+   (for example, `http://scrapbook-frontend-<account_id>.s3-website.ap-south-1.amazonaws.com`).
 
 ### How Frontend Requests Reach the ALB and Backend
 1. During deployment, Jenkins substitutes `<ALB_API_URL>` (from Terraform output `alb_dns_name`, formatted as `http://<alb_dns_name>`) and `<LOCATIONIQ_API_KEY>` into [`client/js/config.js`](./client/js/config.js) before syncing `client/` to the frontend S3 bucket.
@@ -99,35 +99,35 @@ terraform output
 ```
 
 ### Step 2: Initialize MongoDB Authentication & Indexes (via AWS SSM)
-Connect to the `mongodb` EC2 instance using AWS Systems Manager Session Manager and run [`scripts/init-mongodb.sh`](./scripts/init-mongodb.sh):
+Connect to the `scrapbook-mongodb` EC2 instance using AWS Systems Manager Session Manager and run [`scripts/init-mongodb.sh`](./scripts/init-mongodb.sh):
 ```bash
 export MONGODB_ADMIN_USER="<admin_username>"
 export MONGODB_ADMIN_PASSWORD="<strong-admin-password>"
-export MONGODB_APP_USER="memorybook_app"
+export MONGODB_APP_USER="scrapbook_app"
 export MONGODB_APP_PASSWORD="<strong-app-password>"
-export MONGODB_DATABASE="memorybook"
+export MONGODB_DATABASE="scrapbook"
 bash scripts/init-mongodb.sh
 ```
 
 ### Step 3: Create Kubernetes Secrets Once on K3s (via AWS SSM)
-Connect to the `k3s` EC2 instance via SSM, create namespace and secrets (never committed to Git), and copy `/etc/rancher/k3s/k3s.yaml` (updating `127.0.0.1` to `k3s_private_ip`) to Jenkins credential `k8s-kubeconfig`:
+Connect to the `scrapbook-k3s` EC2 instance via SSM, create namespace and secrets (never committed to Git), and copy `/etc/rancher/k3s/k3s.yaml` (updating `127.0.0.1` to `k3s_private_ip`) to Jenkins credential `k8s-kubeconfig`:
 ```bash
 kubectl apply -f deployment/namespace.yaml
 
 kubectl create secret generic app-secrets \
-  --namespace=memorybook \
+  --namespace=scrapbook \
   --from-literal=JWT_SECRET="<your-production-jwt-secret>" \
   --from-literal=INTERNAL_SERVICE_SECRET="<your-internal-service-secret>" \
   --from-literal=GATEWAY_SHARED_SECRET="<your-gateway-shared-secret>" \
-  --from-literal=MONGODB_URI="mongodb://<app_user>:<url_encoded_app_password>@<mongodb-ec2-private-ip>:27017/memorybook?authSource=memorybook"
+  --from-literal=MONGODB_URI="mongodb://<app_user>:<url_encoded_app_password>@<mongodb-ec2-private-ip>:27017/scrapbook?authSource=scrapbook"
 
 kubectl create secret generic grafana-secret \
-  --namespace=memorybook \
+  --namespace=scrapbook \
   --from-literal=admin-password="<your-grafana-admin-password>"
 ```
 
 ### Step 4: Access Jenkins & Configure the Pipeline
-Jenkins binds strictly to `127.0.0.1:8080` on the private Jenkins EC2 host. Forward port `8080` over AWS SSM to access the Jenkins UI, install standard Pipeline/Credentials plugins, add the `k8s-kubeconfig` (`Secret file`) credential, and configure global environment variables (`MEDIA_S3_BUCKET`, `FRONTEND_S3_BUCKET`, `ALB_API_URL`, `LOCATIONIQ_API_KEY`).
+Jenkins runs on `scrapbook-jenkins` and binds strictly to `127.0.0.1:8080`. Forward port `8080` over AWS SSM to access the Jenkins UI, create the `scrapbook-pipeline` Pipeline job pointing to `Jenkinsfile`, install standard Pipeline/Credentials plugins, add the `k8s-kubeconfig` (`Secret file`) credential, and configure global environment variables (`MEDIA_S3_BUCKET`, `FRONTEND_S3_BUCKET`, `ALB_API_URL`, `LOCATIONIQ_API_KEY`).
 
 ---
 
@@ -153,14 +153,14 @@ Kubernetes HPA handles application pod scaling (`1` to `3` pods at `60%` CPU, `6
 ### Check HPA & Pod Scaling Activity
 ```bash
 # Inspect HPA targets, current CPU %, and replica counts
-kubectl get hpa -n memorybook
-kubectl describe hpa auth-service-hpa memories-service-hpa social-service-hpa -n memorybook
+kubectl get hpa -n scrapbook
+kubectl describe hpa scrapbook-auth-hpa scrapbook-memories-hpa scrapbook-social-hpa -n scrapbook
 
 # Inspect per-pod CPU/memory usage via K3s metrics-server
-kubectl top pods -n memorybook
+kubectl top pods -n scrapbook
 
-# Watch pods scale out (1 -> 3) under load and scale back down after ~60s stabilization
-kubectl get pods -n memorybook -w
+# Watch pods in the scrapbook namespace
+kubectl get pods -n scrapbook -w
 ```
 
 ### Generate Sample Load Against the ALB (Example)
@@ -176,12 +176,12 @@ wait
 ### Access Prometheus & Grafana Dashboards
 ```bash
 # Port-forward Grafana (default user: admin, password from grafana-secret)
-kubectl port-forward -n memorybook svc/grafana-service 3000:3000
+kubectl port-forward -n scrapbook svc/grafana-service 3000:3000
 
 # Port-forward Prometheus UI
-kubectl port-forward -n memorybook svc/prometheus-service 9090:9090
+kubectl port-forward -n scrapbook svc/prometheus-service 9090:9090
 ```
-Open `http://localhost:3000` to view the pre-provisioned **Memory Book Overview** dashboard (Active Service Pods / HPA visibility, Service CPU Utilization %, HTTP Request Rate, and HTTP Error Rate).
+Open `http://localhost:3000` to view the pre-provisioned **Scrapbook Overview** dashboard (Active Service Pods / HPA visibility, Service CPU Utilization %, HTTP Request Rate, and HTTP Error Rate).
 
 ---
 

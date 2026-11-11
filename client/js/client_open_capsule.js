@@ -43,10 +43,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('capReveals').textContent = displayReveal || '-';
                 document.getElementById('capCreated').textContent = displayCreated || '-';
 
-                window.MemoryBookConfig.setTextWithBreaks(document.getElementById('capMessage'), capsule.message || '');
+                window.ScrapbookConfig.setTextWithBreaks(document.getElementById('capMessage'), capsule.message || '');
                 if (capsule.description) {
                     const dEl = document.getElementById('capDesc');
-                    window.MemoryBookConfig.setTextWithBreaks(dEl, capsule.description);
+                    window.ScrapbookConfig.setTextWithBreaks(dEl, capsule.description);
                     dEl.classList.remove('hidden');
                 }
 
@@ -106,10 +106,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (!mediaItems[index]) return;
                             const item = mediaItems[index];
                             let mediaType = item.type || '';
-                            const src = window.MemoryBookConfig.resolveMediaUrl(item.path);
+                            const src = window.ScrapbookConfig.resolveMediaUrl(item.path);
 
                             if (!mediaType && typeof item.path === 'string') {
-                                const ext = window.MemoryBookConfig.getCleanExtension(item.path);
+                                const ext = window.ScrapbookConfig.getCleanExtension(item.path);
                                 if (['jpg','jpeg','png','gif','webp'].includes(ext)) mediaType = 'image/jpeg';
                                 else if (['mp4','webm','mov','ogg'].includes(ext)) mediaType = 'video/mp4';
                                 else if (['mp3','wav','ogg','m4a','aac'].includes(ext)) mediaType = 'audio/mp3';
@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                             if (mediaEl) {
                                 mediaContentEl.appendChild(mediaEl);
-                                const dlUrl = window.MemoryBookConfig.resolveMediaUrl(item.download_url || src);
+                                const dlUrl = window.ScrapbookConfig.resolveMediaUrl(item.download_url || src);
                                 if (dlUrl) {
                                     const dlLink = document.createElement('a');
                                     dlLink.href = dlUrl;

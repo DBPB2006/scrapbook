@@ -2,11 +2,11 @@ apiVersion: v1
 kind: Service
 metadata:
   name: sharing-service
-  namespace: memorybook
+  namespace: scrapbook
   labels:
     app: sharing-service
     app.kubernetes.io/name: sharing-service
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/part-of: scrapbook
 spec:
   type: ClusterIP
   selector:

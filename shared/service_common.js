@@ -1,6 +1,6 @@
 /**
  * Shared Microservice Utilities
- * Memory Book Platform
+ * Scrapbook Platform
  */
 
 const crypto = require('crypto');

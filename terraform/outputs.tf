@@ -4,12 +4,12 @@ output "aws_account_id" {
 }
 
 output "vpc_id" {
-  description = "Memory Book VPC ID."
+  description = "Scrapbook VPC ID."
   value       = aws_vpc.main.id
 }
 
 output "vpc_cidr" {
-  description = "Memory Book VPC CIDR block."
+  description = "Scrapbook VPC CIDR block."
   value       = aws_vpc.main.cidr_block
 }
 

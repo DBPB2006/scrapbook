@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // LOCATION AUTOCOMPLETE
             const locationInput = document.getElementById('location');
             const locationSuggestions = document.getElementById('locationSuggestions');
-            const LOCATIONIQ_API_KEY = (window.MemoryBookConfig && window.MemoryBookConfig.LOCATIONIQ_API_KEY) || '';
+            const LOCATIONIQ_API_KEY = (window.ScrapbookConfig && window.ScrapbookConfig.LOCATIONIQ_API_KEY) || '';
             let locationTimeout = null;
 
             locationInput.addEventListener('input', function() {

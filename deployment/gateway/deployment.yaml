@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: gateway-service
-  namespace: memorybook
+  name: scrapbook-gateway
+  namespace: scrapbook
   labels:
     app: gateway-service
     app.kubernetes.io/name: gateway-service
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/part-of: scrapbook
 spec:
   replicas: 1
   strategy:
@@ -22,11 +22,11 @@ spec:
       labels:
         app: gateway-service
         app.kubernetes.io/name: gateway-service
-        app.kubernetes.io/part-of: memorybook
+        app.kubernetes.io/part-of: scrapbook
     spec:
       containers:
-      - name: gateway-service
-        image: "<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/memory-book-gateway:<IMAGE_TAG>"
+      - name: scrapbook-gateway
+        image: "<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/scrapbook-gateway:<IMAGE_TAG>"
         imagePullPolicy: IfNotPresent
         ports:
         - name: http

@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: auth-service
-  namespace: memorybook
+  name: scrapbook-auth
+  namespace: scrapbook
   labels:
     app: auth-service
     app.kubernetes.io/name: auth-service
-    app.kubernetes.io/part-of: memorybook
+    app.kubernetes.io/part-of: scrapbook
 spec:
   replicas: 1
   strategy:
@@ -22,11 +22,11 @@ spec:
       labels:
         app: auth-service
         app.kubernetes.io/name: auth-service
-        app.kubernetes.io/part-of: memorybook
+        app.kubernetes.io/part-of: scrapbook
     spec:
       containers:
-      - name: auth-service
-        image: "<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/memory-book-auth:<IMAGE_TAG>"
+      - name: scrapbook-auth
+        image: "<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/scrapbook-auth:<IMAGE_TAG>"
         imagePullPolicy: IfNotPresent
         ports:
         - name: http

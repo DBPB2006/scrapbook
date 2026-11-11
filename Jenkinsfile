@@ -6,8 +6,9 @@ pipeline {
     }
 
     environment {
-        AWS_REGION = 'ap-south-1'
-        SERVICES   = 'auth gateway memories social sharing'
+        AWS_REGION      = 'ap-south-1'
+        SERVICES        = 'auth gateway memories social sharing'
+        DOCKER_BUILDKIT = '1'
     }
 
     stages {
@@ -27,7 +28,6 @@ pipeline {
                     if (missing) {
                         error "Missing required Jenkins environment variables: ${missing.join(', ')}"
                     }
-
                     def albUrl = env.ALB_API_URL.trim().replaceAll('/+$', '')
                     env.ALB_API_URL = (albUrl.startsWith('http://') || albUrl.startsWith('https://')) ? albUrl : "http://${albUrl}"
 
@@ -127,7 +127,7 @@ pipeline {
                         cp -R deployment/. "${RENDER_DIR}/"
 
                         for manifest in $(find "${RENDER_DIR}" -type f -name '*.yaml'); do
-                            sed -e "s|<AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com|${ECR_REGISTRY}|g" -e "s|<IMAGE_TAG>|${IMAGE_TAG}|g" -e "s|<MEDIA_S3_BUCKET>|${MEDIA_S3_BUCKET}|g" -e "s|http://<FRONTEND_S3_WEBSITE_ORIGIN>|${FRONTEND_ORIGIN}|g" "${manifest}" > "${manifest}.tmp"
+                            sed -e "s|<AWS_ACCOUNT_ID>\.dkr\.ecr\.[^/]*\.amazonaws\.com|${ECR_REGISTRY}|g" -e "s|<IMAGE_TAG>|${IMAGE_TAG}|g" -e "s|<MEDIA_S3_BUCKET>|${MEDIA_S3_BUCKET}|g" -e "s|http://<FRONTEND_S3_WEBSITE_ORIGIN>|${FRONTEND_ORIGIN}|g" "${manifest}" > "${manifest}.tmp"
                             mv "${manifest}.tmp" "${manifest}"
                         done
 
@@ -158,6 +158,8 @@ pipeline {
                         for svc in $SERVICES; do
                             kubectl rollout status "deployment/${svc}-service" -n memorybook --timeout=180s
                         done
+                        kubectl rollout status deployment/prometheus -n memorybook --timeout=180s
+                        kubectl rollout status deployment/grafana -n memorybook --timeout=180s
                     '''
                 }
             }

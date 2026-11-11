@@ -14,6 +14,7 @@ const {
     getDownloadUrl,
     createUploadMiddleware,
     handleUploadError,
+    deleteS3Objects,
     extractS3Keys
 } = hasLocalShared ? require('./shared/s3_storage') : require('../shared/s3_storage');
 const metrics = hasLocalShared ? require('./shared/metrics') : require('../shared/metrics');
@@ -69,6 +70,15 @@ const uploadSharedAttachments = createUploadMiddleware(multer, {
 
 const isAuthenticated = createIsAuthenticated(GATEWAY_SECRET, INTERNAL_SECRET, isProduction);
 const isInternalService = createIsInternalService(INTERNAL_SECRET);
+
+async function cleanupUploadedFiles(files) {
+    const keys = Array.isArray(files)
+        ? files.filter(f => f && f.provider === 's3' && f.key).map(f => f.key)
+        : [];
+    if (keys.length > 0) {
+        try { await deleteS3Objects(keys); } catch (_) {}
+    }
+}
 
 // In-memory Min-Heap scheduling structure
 const capsuleSchedulerHeap = new BinaryMinHeap();
@@ -209,6 +219,7 @@ app.post('/api/capsules', isAuthenticated, uploadCapsuleMedia, async (req, res) 
         const { recipient_email, message, description, reveal_date } = req.body;
 
         if (!recipient_email || !message || !reveal_date) {
+            await cleanupUploadedFiles(req.files);
             return res.status(400).json({ error: 'Recipient, message, and reveal date are required.' });
         }
 
@@ -234,7 +245,7 @@ app.post('/api/capsules', isAuthenticated, uploadCapsuleMedia, async (req, res) 
             : reveal_date;
 
         const newCapsule = {
-            id: 'tc_' + Math.random().toString(36).substr(2, 9),
+            id: 'tc_' + crypto.randomBytes(6).toString('hex'),
             user_email: req.userEmail,
             recipient_email: normalizeEmail(recipient_email),
             reveal_date: normalizedRevealDate,
@@ -250,6 +261,7 @@ app.post('/api/capsules', isAuthenticated, uploadCapsuleMedia, async (req, res) 
 
         res.json({ success: true, message: 'Capsule created successfully' });
     } catch (err) {
+        await cleanupUploadedFiles(req.files);
         console.error('Create capsule error:', err.message);
         res.status(500).json({ error: 'Database service unavailable' });
     }
@@ -320,7 +332,7 @@ app.post('/api/internal/sharing/update_email', isInternalService, async (req, re
     }
 });
 
-app.post('/api/capsules/countdown', (req, res) => {
+app.post('/api/capsules/countdown', isAuthenticated, (req, res) => {
     const { start_date, reveal_date } = req.body;
     if (!reveal_date) return res.status(400).json({ error: 'reveal_date is required' });
     const nowStr = start_date || new Date().toISOString();
@@ -440,6 +452,7 @@ app.post('/api/shared_memories', isAuthenticated, uploadSharedAttachments, async
         const normalizedTargetEmail = normalizeEmail(to_email);
 
         if (!normalizedTargetEmail || (!memory_title && !selected_memory_id)) {
+            await cleanupUploadedFiles(req.files);
             return res.status(400).json({ error: 'Missing required fields: recipient and memory title or selected memory are required.' });
         }
 
@@ -457,6 +470,7 @@ app.post('/api/shared_memories', isAuthenticated, uploadSharedAttachments, async
                 ? lookupRes.data.users
                 : {};
         } catch (err) {
+            await cleanupUploadedFiles(req.files);
             console.error('Failed to lookup users internally from auth service:', err.message);
             return res.status(503).json({ error: 'Authentication service unavailable' });
         }
@@ -465,6 +479,7 @@ app.post('/api/shared_memories', isAuthenticated, uploadSharedAttachments, async
         const toUser = usersMap[normalizedTargetEmail];
 
         if (!toUser) {
+            await cleanupUploadedFiles(req.files);
             return res.status(404).json({ error: 'Recipient user not found' });
         }
 
@@ -483,6 +498,7 @@ app.post('/api/shared_memories', isAuthenticated, uploadSharedAttachments, async
                 if (status === 404) {
                     originalMemory = null;
                 } else {
+                    await cleanupUploadedFiles(req.files);
                     console.error('Failed to fetch selected memory from memories service:', err.message);
                     return res.status(503).json({ error: 'Memories service unavailable' });
                 }
@@ -607,6 +623,7 @@ app.post('/api/shared_memories', isAuthenticated, uploadSharedAttachments, async
             original_memory_id: newShared.original_memory_id
         });
     } catch (err) {
+        await cleanupUploadedFiles(req.files);
         console.error('Share memory error:', err.message);
         res.status(500).json({ error: 'Database service unavailable' });
     }

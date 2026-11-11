@@ -9,6 +9,11 @@ metadata:
     app.kubernetes.io/part-of: memorybook
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: grafana
@@ -36,6 +41,10 @@ spec:
               key: admin-password
         - name: GF_USERS_ALLOW_SIGN_UP
           value: "false"
+        - name: GF_ANALYTICS_REPORTING_ENABLED
+          value: "false"
+        - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+          value: "false"
         volumeMounts:
         - name: datasource-volume
           mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
@@ -50,11 +59,11 @@ spec:
           mountPath: /var/lib/grafana
         resources:
           requests:
-            cpu: 100m
-            memory: 128Mi
+            cpu: 50m
+            memory: 96Mi
           limits:
-            cpu: 250m
-            memory: 256Mi
+            cpu: 200m
+            memory: 192Mi
         livenessProbe:
           httpGet:
             path: /api/health

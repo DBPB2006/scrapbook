@@ -13,6 +13,7 @@ const {
     getMediaUrl,
     createUploadMiddleware,
     handleUploadError,
+    deleteS3Object,
     extractS3Keys
 } = hasLocalShared ? require('./shared/s3_storage') : require('../shared/s3_storage');
 const metrics = hasLocalShared ? require('./shared/metrics') : require('../shared/metrics');
@@ -535,15 +536,23 @@ app.get('/api/friends', isAuthenticated, async (req, res) => {
 
 // Send Friend Request
 const handleSendFriendRequest = async (req, res) => {
+    const uploadedKey = req.file && req.file.provider === 's3' ? req.file.key : null;
+    const cleanupUploadedKey = async () => {
+        if (uploadedKey) {
+            try { await deleteS3Object(uploadedKey); } catch (_) {}
+        }
+    };
     try {
         const currentEmail = req.userEmail;
         const targetEmail = normalizeEmail(req.body.to_email || req.body.friendEmail);
         const { friendName, relationshipTag, howYouMet, message } = req.body;
 
         if (!targetEmail) {
+            await cleanupUploadedKey();
             return res.status(400).json({ error: 'Recipient email is required.' });
         }
         if (currentEmail === targetEmail) {
+            await cleanupUploadedKey();
             return res.status(400).json({ error: 'Cannot send a friend request to yourself.' });
         }
 
@@ -555,19 +564,23 @@ const handleSendFriendRequest = async (req, res) => {
         const toUser = usersMap[targetEmail];
 
         if (!fromUser) {
+            await cleanupUploadedKey();
             return res.status(404).json({ error: 'Authenticated sender account not found.' });
         }
         if (!toUser) {
+            await cleanupUploadedKey();
             return res.status(404).json({ error: 'Recipient user not found.' });
         }
 
         const isAlreadyFriend = hasFriendEntry(fromUser.friends, targetEmail) || hasFriendEntry(toUser.friends, currentEmail);
         if (isAlreadyFriend) {
+            await cleanupUploadedKey();
             return res.status(400).json({ error: 'You are already friends with this user.' });
         }
 
         const existingPending = await friendRequestStore.find_pending_between(currentEmail, targetEmail);
         if (existingPending) {
+            await cleanupUploadedKey();
             return res.status(400).json({ error: 'A pending friend request already exists between you and this user.' });
         }
 
@@ -598,6 +611,7 @@ const handleSendFriendRequest = async (req, res) => {
         try {
             await friendRequestStore.add_request(newRequest);
         } catch (addErr) {
+            await cleanupUploadedKey();
             if (addErr && (addErr.code === 11000 || /E11000/i.test(addErr.message || ''))) {
                 return res.status(400).json({ error: 'A pending friend request already exists between you and this user.' });
             }
@@ -606,6 +620,7 @@ const handleSendFriendRequest = async (req, res) => {
 
         res.json({ success: true, message: 'Friend request sent successfully', request: newRequest });
     } catch (err) {
+        await cleanupUploadedKey();
         console.error('Send friend request error:', err.message);
         res.status(err.statusCode || 500).json({ error: err.statusCode === 503 ? err.message : 'Database service unavailable' });
     }
@@ -877,7 +892,7 @@ app.delete('/api/friends/requests/:id', isAuthenticated, async (req, res) => {
 });
 
 // Direct friend creation is disabled to enforce mutual consent via friend requests
-app.post('/api/friends', isAuthenticated, uploadFriendImage, (req, res) => {
+app.post('/api/friends', isAuthenticated, (req, res) => {
     return res.status(403).json({
         error: 'Direct friend creation is disabled to prevent one-sided friendships. Send a mutual friend request via POST /api/friends/requests instead.',
         code: 'DIRECT_FRIEND_CREATION_DISABLED'

@@ -1,6 +1,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
@@ -12,6 +13,7 @@ const {
     getDownloadUrl,
     createUploadMiddleware,
     handleUploadError,
+    deleteS3Objects,
     extractS3Keys
 } = hasLocalShared ? require('./shared/s3_storage') : require('../shared/s3_storage');
 const metrics = hasLocalShared ? require('./shared/metrics') : require('../shared/metrics');
@@ -113,6 +115,161 @@ function parseFriendsParam(rawFriends) {
         return typeof rawFriends === 'string' ? JSON.parse(rawFriends) : rawFriends;
     } catch (_) {
         return Array.isArray(rawFriends) ? rawFriends : [rawFriends];
+    }
+}
+
+function getUploadedS3Keys(files) {
+    if (!Array.isArray(files) || files.length === 0) return [];
+    return files.filter(f => f && f.provider === 's3' && f.key).map(f => f.key);
+}
+
+async function cleanupUploadedFiles(files) {
+    const keys = getUploadedS3Keys(files);
+    if (keys.length > 0) {
+        try { await deleteS3Objects(keys); } catch (_) {}
+    }
+}
+
+async function filterUnreferencedS3Keys(candidateKeys) {
+    if (!Array.isArray(candidateKeys) || candidateKeys.length === 0) return [];
+    const uniqueCandidates = [...new Set(candidateKeys.filter(k => typeof k === 'string' && k.trim()))];
+    if (uniqueCandidates.length === 0) return [];
+
+    if (!mongodb || typeof mongodb.isConnected !== 'function' || !mongodb.isConnected()) {
+        console.warn('Memories Service: MongoDB disconnected; skipping S3 cleanup to avoid data loss.');
+        return [];
+    }
+
+    const stillReferenced = new Set();
+    const referenceQueries = [
+        {
+            colName: mongodb.COLLECTIONS.MEMORIES,
+            filter: {
+                $or: [
+                    { 'media.url.key': { $in: uniqueCandidates } },
+                    { 'media.path.key': { $in: uniqueCandidates } },
+                    { 'media.key': { $in: uniqueCandidates } },
+                    { 'image.key': { $in: uniqueCandidates } },
+                    { 'image.url.key': { $in: uniqueCandidates } }
+                ]
+            },
+            projection: { _id: 0, media: 1, image: 1 }
+        },
+        {
+            colName: mongodb.COLLECTIONS.SHARED_MEMORIES,
+            filter: {
+                $or: [
+                    { 'attachments.key': { $in: uniqueCandidates } },
+                    { 'attachments.url.key': { $in: uniqueCandidates } },
+                    { 'media.url.key': { $in: uniqueCandidates } },
+                    { 'media.path.key': { $in: uniqueCandidates } },
+                    { 'media.key': { $in: uniqueCandidates } },
+                    { 'image.key': { $in: uniqueCandidates } },
+                    { 'image.url.key': { $in: uniqueCandidates } }
+                ]
+            },
+            projection: { _id: 0, attachments: 1, media: 1, image: 1 }
+        },
+        {
+            colName: mongodb.COLLECTIONS.TIME_CAPSULES,
+            filter: {
+                $or: [
+                    { 'media.path.key': { $in: uniqueCandidates } },
+                    { 'media.url.key': { $in: uniqueCandidates } },
+                    { 'media.key': { $in: uniqueCandidates } }
+                ]
+            },
+            projection: { _id: 0, media: 1 }
+        }
+    ];
+
+    for (const { colName, filter, projection } of referenceQueries) {
+        try {
+            const col = mongodb.getCollection(colName);
+            if (!col || typeof col.find !== 'function') {
+                console.warn(`Memories Service: S3 reference check unavailable for ${colName}; skipping S3 cleanup to avoid data loss.`);
+                return [];
+            }
+            const docs = await col.find(filter, { projection }).toArray();
+            for (const doc of docs) {
+                extractS3Keys(doc, stillReferenced);
+            }
+        } catch (err) {
+            console.warn(`Memories Service: S3 reference check failed for ${colName}; skipping S3 cleanup to avoid data loss:`, err.message);
+            return [];
+        }
+    }
+
+    return uniqueCandidates.filter(k => !stillReferenced.has(k));
+}
+
+async function buildFriendUsersMap(ownerEmail, friends) {
+    if (!Array.isArray(friends) || friends.length === 0) return {};
+    const emails = new Set([normalizeEmail(ownerEmail)].filter(Boolean));
+    for (const entry of friends) {
+        if (!entry) continue;
+        if (typeof entry === 'string') {
+            const em = normalizeEmail(entry);
+            if (em && em.includes('@')) emails.add(em);
+        } else if (typeof entry === 'object') {
+            const em = normalizeEmail(entry.email || entry.id || entry.friend_id);
+            if (em && em.includes('@')) emails.add(em);
+        }
+    }
+    if (emails.size === 0) return {};
+
+    try {
+        const authUrl = process.env.AUTH_SERVICE_URL || 'http://auth-service:3001';
+        const resp = await fetch(`${authUrl}/api/internal/users/lookup`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-internal-secret': INTERNAL_SECRET
+            },
+            body: JSON.stringify({ emails: Array.from(emails), includeFriends: true, includeProfilePic: false }),
+            signal: AbortSignal.timeout(3000)
+        });
+        if (!resp.ok) return {};
+        const payload = await resp.json();
+        const users = payload && payload.users && typeof payload.users === 'object' ? payload.users : {};
+        const friendUsers = {};
+
+        for (const [em, u] of Object.entries(users)) {
+            if (!u || typeof u !== 'object') continue;
+            const norm = normalizeEmail(em);
+            const fullName = u.name || `${u.first_name || u.firstName || ''} ${u.last_name || u.lastName || ''}`.trim();
+            friendUsers[norm] = {
+                name: fullName || u.username || norm,
+                first_name: u.first_name || u.firstName || '',
+                username: u.username || '',
+                email: norm
+            };
+        }
+
+        const ownerDoc = users[normalizeEmail(ownerEmail)];
+        if (ownerDoc && Array.isArray(ownerDoc.friends)) {
+            for (const f of ownerDoc.friends) {
+                if (!f || typeof f !== 'object') continue;
+                const fEmail = normalizeEmail(f.email);
+                const lookedUp = fEmail ? friendUsers[fEmail] : null;
+                const displayObj = {
+                    name: f.name || (lookedUp && lookedUp.name) || fEmail || '',
+                    first_name: f.first_name || (lookedUp && lookedUp.first_name) || '',
+                    username: (lookedUp && lookedUp.username) || '',
+                    email: fEmail || ''
+                };
+                for (const refKey of [fEmail, f.friend_id, f.id]) {
+                    const k = typeof refKey === 'string' || typeof refKey === 'number'
+                        ? String(refKey).trim().toLowerCase()
+                        : '';
+                    if (k && !friendUsers[k]) friendUsers[k] = displayObj;
+                }
+            }
+        }
+        return friendUsers;
+    } catch (err) {
+        console.warn('Memories Service: Best-effort friend lookup skipped:', err.message);
+        return {};
     }
 }
 
@@ -220,11 +377,12 @@ app.post('/api/memories', isAuthenticated, uploadMemoryMedia, async (req, res) =
     try {
         const { title, date, mood, location, description, tags } = req.body;
         if (!title || !date) {
+            await cleanupUploadedFiles(req.files);
             return res.status(400).json({ error: 'Title and Date are required.' });
         }
 
         const newMemory = {
-            memory_id: 'm_' + Math.random().toString(36).substr(2, 9),
+            memory_id: 'm_' + crypto.randomBytes(6).toString('hex'),
             owner: req.userEmail,
             title: title.trim(),
             date: date.trim(),
@@ -242,6 +400,7 @@ app.post('/api/memories', isAuthenticated, uploadMemoryMedia, async (req, res) =
 
         res.json({ success: true, message: 'Memory added successfully', memory_id: newMemory.memory_id });
     } catch (err) {
+        await cleanupUploadedFiles(req.files);
         console.error('Add memory error:', err.message);
         res.status(500).json({ error: 'Database service unavailable' });
     }
@@ -259,19 +418,23 @@ app.get('/api/memories/:id', isAuthenticated, async (req, res) => {
             return res.status(404).json({ error: 'Memory not found' });
         }
 
-        const sortedUserMemories = await memoryStore.get_user_memory_nav_list(currentEmail, order);
+        const [sortedUserMemories, memoryCopy, friendUsers] = await Promise.all([
+            memoryStore.get_user_memory_nav_list(currentEmail, order),
+            formatMemoryResponse(memory),
+            buildFriendUsersMap(currentEmail, memory.friends)
+        ]);
         const memIndex = sortedUserMemories.findIndex(m => m.memory_id === memoryId);
         const prevMemoryId = memIndex > 0 ? sortedUserMemories[memIndex - 1].memory_id : null;
         const nextMemoryId = memIndex >= 0 && memIndex < sortedUserMemories.length - 1 ? sortedUserMemories[memIndex + 1].memory_id : null;
 
         const mappedMemories = sortedUserMemories.map(m => ({ id: m.memory_id, title: m.title, date: m.date }));
-        const memoryCopy = await formatMemoryResponse(memory);
 
         res.json({
             memory: memoryCopy,
             allUserMemories: mappedMemories,
             prevMemoryId,
             nextMemoryId,
+            friendUsers,
             order
         });
     } catch (err) {
@@ -288,17 +451,21 @@ app.put('/api/memories/:id', isAuthenticated, uploadMemoryMedia, async (req, res
 
         const existingMemory = await memoryStore.get_memory_by_id(memoryId);
         if (!existingMemory) {
+            await cleanupUploadedFiles(req.files);
             return res.status(404).json({ error: 'Memory not found' });
         }
         if (normalizeEmail(existingMemory.owner) !== currentEmail) {
+            await cleanupUploadedFiles(req.files);
             return res.status(403).json({ error: 'Unauthorized: You can only edit your own memories' });
         }
 
         const { title, date, mood, location, description, tags, friends, selected_friends, keep_existing_media } = req.body;
         if (title !== undefined && (!title || !title.trim())) {
+            await cleanupUploadedFiles(req.files);
             return res.status(400).json({ error: 'Title cannot be empty.' });
         }
         if (date !== undefined && (!date || !date.trim())) {
+            await cleanupUploadedFiles(req.files);
             return res.status(400).json({ error: 'Date cannot be empty.' });
         }
 
@@ -316,6 +483,8 @@ app.put('/api/memories/:id', isAuthenticated, uploadMemoryMedia, async (req, res
             updates.friends = parseFriendsParam(rawFriends);
         }
 
+        const uploadedKeys = getUploadedS3Keys(req.files);
+        const replacedCandidateKeys = keep_existing_media === 'false' ? extractS3Keys(existingMemory.media) : [];
         const newMediaPaths = mapUploadedMediaFiles(req.files);
         if (keep_existing_media === 'false') {
             updates.media = newMediaPaths;
@@ -328,13 +497,26 @@ app.put('/api/memories/:id', isAuthenticated, uploadMemoryMedia, async (req, res
 
         const updatedMemory = await memoryStore.update_memory(memoryId, existingMemory.owner || currentEmail, updates);
         if (!updatedMemory) {
+            await cleanupUploadedFiles(req.files);
             return res.status(404).json({ error: 'Memory not found' });
         }
-        const memoryResponse = { ...updatedMemory };
-        delete memoryResponse._id;
 
+        if (replacedCandidateKeys.length > 0) {
+            try {
+                const safeOldKeys = (await filterUnreferencedS3Keys(replacedCandidateKeys))
+                    .filter(k => !uploadedKeys.includes(k));
+                if (safeOldKeys.length > 0) {
+                    await deleteS3Objects(safeOldKeys);
+                }
+            } catch (s3Err) {
+                console.warn('Memory updated cleanly, replaced S3 cleanup warning:', s3Err.message);
+            }
+        }
+
+        const memoryResponse = await formatMemoryResponse(updatedMemory);
         res.json({ success: true, message: 'Memory updated successfully', memory: memoryResponse });
     } catch (err) {
+        await cleanupUploadedFiles(req.files);
         console.error('Update memory error:', err.message);
         res.status(500).json({ error: 'Database service unavailable' });
     }
@@ -345,6 +527,7 @@ app.delete('/api/memories/:id', isAuthenticated, async (req, res) => {
     try {
         const currentEmail = req.userEmail;
         const memoryId = req.params.id;
+        const order = (req.query.order || req.query.sort || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
 
         const existing = await memoryStore.get_memory_by_id(memoryId);
         if (!existing) {
@@ -354,10 +537,32 @@ app.delete('/api/memories/:id', isAuthenticated, async (req, res) => {
             return res.status(403).json({ error: 'Unauthorized: You can only delete your own memories' });
         }
 
+        const navList = await memoryStore.get_user_memory_nav_list(existing.owner || currentEmail, order);
+        const memIndex = navList.findIndex(m => m.memory_id === memoryId);
+        let redirectId = null;
+        if (memIndex >= 0) {
+            if (memIndex + 1 < navList.length) redirectId = navList[memIndex + 1].memory_id;
+            else if (memIndex - 1 >= 0) redirectId = navList[memIndex - 1].memory_id;
+        } else {
+            const firstRemaining = navList.find(m => m.memory_id !== memoryId);
+            redirectId = firstRemaining ? firstRemaining.memory_id : null;
+        }
+
         const deleted = await memoryStore.delete_memory(memoryId, existing.owner || currentEmail);
         if (deleted) {
             metrics.memoriesDeletedTotal.inc();
-            res.json({ success: true, message: 'Memory deleted' });
+            const candidateKeys = extractS3Keys(existing.media);
+            if (candidateKeys.length > 0) {
+                try {
+                    const safeKeys = await filterUnreferencedS3Keys(candidateKeys);
+                    if (safeKeys.length > 0) {
+                        await deleteS3Objects(safeKeys);
+                    }
+                } catch (s3Err) {
+                    console.warn('Memory deleted cleanly, S3 post-cleanup warning:', s3Err.message);
+                }
+            }
+            res.json({ success: true, message: 'Memory deleted', redirectId });
         } else {
             res.status(404).json({ error: 'Memory not found or unauthorized' });
         }
@@ -392,4 +597,4 @@ if (require.main === module) {
     startServer();
 }
 
-module.exports = { app, startServer, memoryStore };
+module.exports = { app, startServer, memoryStore, filterUnreferencedS3Keys };

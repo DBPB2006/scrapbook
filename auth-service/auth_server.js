@@ -586,7 +586,8 @@ async function filterUnreferencedS3Keys(candidateKeys) {
     if (uniqueCandidates.length === 0) return [];
 
     if (!mongodb || typeof mongodb.isConnected !== 'function' || !mongodb.isConnected()) {
-        return uniqueCandidates;
+        console.warn('Auth Service: MongoDB disconnected; skipping S3 cleanup to avoid data loss.');
+        return [];
     }
 
     const stillReferenced = new Set();
@@ -657,7 +658,10 @@ async function filterUnreferencedS3Keys(candidateKeys) {
     for (const { colName, filter, projection } of referenceQueries) {
         try {
             const col = mongodb.getCollection(colName);
-            if (!col || typeof col.find !== 'function') continue;
+            if (!col || typeof col.find !== 'function') {
+                console.warn(`S3 reference check unavailable for ${colName}; skipping S3 cleanup to avoid data loss.`);
+                return [];
+            }
             const docs = await col.find(filter, { projection }).toArray();
             for (const doc of docs) {
                 extractS3Keys(doc, stillReferenced);
@@ -1394,4 +1398,4 @@ if (require.main === module) {
     startServer();
 }
 
-module.exports = { app, startServer, userStore };
+module.exports = { app, startServer, userStore, filterUnreferencedS3Keys };

@@ -14,6 +14,7 @@ const app = express();
 // Trust the single AWS ALB reverse proxy hop so req.ip reflects the true client IP
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3090;
+const METRICS_PORT = process.env.METRICS_PORT !== undefined ? parseInt(process.env.METRICS_PORT, 10) : 3091;
 const isProduction = process.env.NODE_ENV === 'production';
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -83,7 +84,9 @@ app.use(cors({
 }));
 
 app.use(metrics.metricsMiddleware);
-app.get('/metrics', metrics.metricsEndpoint);
+app.get('/metrics', (req, res) => {
+    res.status(403).json({ error: 'Access denied: Metrics endpoint cannot be accessed externally.' });
+});
 
 // Prevent external clients from accessing internal service endpoints
 app.use('/api/internal', (req, res) => {
@@ -243,15 +246,34 @@ app.use((err, req, res, next) => {
 });
 
 let server = null;
+let metricsServer = null;
 
 function startServer() {
     server = app.listen(PORT, () => {
         console.log(`API Gateway running at http://localhost:${PORT}`);
     });
 
+    if (Number.isInteger(METRICS_PORT) && METRICS_PORT >= 0) {
+        const metricsApp = express();
+        metricsApp.get('/metrics', metrics.metricsEndpoint);
+        metricsServer = metricsApp.listen(METRICS_PORT, () => {
+            console.log(`API Gateway metrics running on internal port ${METRICS_PORT}`);
+        });
+    }
+
+    let shuttingDown = false;
     const shutdown = () => {
+        if (shuttingDown) return;
+        shuttingDown = true;
         console.log('Shutting down gracefully...');
-        server.close(() => {
+        const closeServer = (srv) => new Promise((resolve) => {
+            if (!srv) return resolve();
+            srv.close(() => resolve());
+            if (typeof srv.closeIdleConnections === 'function') {
+                srv.closeIdleConnections();
+            }
+        });
+        Promise.all([closeServer(server), closeServer(metricsServer)]).then(() => {
             console.log('Closed out remaining connections');
             process.exit(0);
         });

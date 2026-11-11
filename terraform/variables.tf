@@ -82,7 +82,7 @@ variable "additional_tags" {
 variable "k3s_instance_type" {
   description = "EC2 instance type for the single-node K3s host."
   type        = string
-  default     = "t3.medium"
+  default     = "t3.small"
 }
 
 variable "jenkins_instance_type" {

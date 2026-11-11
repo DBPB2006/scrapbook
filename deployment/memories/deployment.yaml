@@ -9,6 +9,11 @@ metadata:
     app.kubernetes.io/part-of: memorybook
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: memories-service
@@ -30,6 +35,8 @@ spec:
         env:
         - name: PORT
           value: "3002"
+        - name: AUTH_SERVICE_URL
+          value: "http://auth-service:3001"
         envFrom:
         - configMapRef:
             name: app-config
@@ -37,11 +44,11 @@ spec:
             name: app-secrets
         resources:
           requests:
-            cpu: 100m
-            memory: 128Mi
+            cpu: 50m
+            memory: 112Mi
           limits:
             cpu: 250m
-            memory: 256Mi
+            memory: 224Mi
         livenessProbe:
           httpGet:
             path: /health/live

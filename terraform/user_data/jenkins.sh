@@ -7,6 +7,27 @@ dnf install -y fontconfig java-21-amazon-corretto git docker awscli nodejs20 nod
 command -v node >/dev/null || ln -sf /usr/bin/node-20 /usr/bin/node
 command -v npm >/dev/null || ln -sf /usr/bin/npm-20 /usr/bin/npm
 
+# Provision a 2 GiB swapfile so t3.small Jenkins tolerates Java + Docker + Trivy/Semgrep memory spikes.
+if [ ! -f /swapfile ]; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+# Enable Docker BuildKit at the daemon level and ensure docker buildx plugin is available.
+mkdir -p /etc/docker
+printf '%s\n' '{"features":{"buildkit":true}}' > /etc/docker/daemon.json
+if ! dnf install -y docker-buildx-plugin; then
+  ARCH="$(uname -m)"
+  [ "${ARCH}" = "aarch64" ] && BUILDX_ARCH="arm64" || BUILDX_ARCH="amd64"
+  mkdir -p /usr/libexec/docker/cli-plugins
+  curl -fsSL -o /usr/libexec/docker/cli-plugins/docker-buildx \
+    "https://github.com/docker/buildx/releases/download/v0.21.3/buildx-v0.21.3.linux-${BUILDX_ARCH}"
+  chmod +x /usr/libexec/docker/cli-plugins/docker-buildx
+fi
+
 # Install Jenkins LTS.
 curl -fsSL -o /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
 rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key

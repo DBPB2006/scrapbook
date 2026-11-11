@@ -7,6 +7,7 @@ metadata:
     app.kubernetes.io/part-of: memorybook
 data:
   NODE_ENV: "production"
+  NODE_OPTIONS: "--max-old-space-size=96"
   AWS_REGION: "ap-south-1"
   # Populated during Jenkins deployment from Terraform output media_bucket_name
   AWS_S3_BUCKET: "<MEDIA_S3_BUCKET>"

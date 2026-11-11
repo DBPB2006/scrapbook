@@ -51,23 +51,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const colors = ['#2563eb', '#14b8a6', '#f59e42', '#ec4899', '#22c55e', '#eab308', '#ef4444'];
                     (data.allUserMemories || []).forEach((m, idx) => {
                         const isActive = m.id === memoryId;
-                        const isNavigable = m.id === data.prevMemoryId || m.id === data.nextMemoryId;
                         const color = colors[idx % colors.length];
                         const initials = (m.title || 'M').split(/\s+/).map(w=>w[0]).join('').substring(0,2).toUpperCase();
                         
-                        let style = 'background: #A8C8EC; color: #fff; border: 4px solid #A8C8EC;';
+                        let style = `background: ${color}; color: #fff; border: 3px solid #E8E3F5; opacity: 0.78;`;
                         let classes = 'flex items-center justify-center w-16 h-16 rounded-full font-bold text-lg transition-all duration-200';
                         
                         if (isActive) {
                             style = `background: ${color}; color: #fff; border: 4px solid #A8C8EC; pointer-events: none; box-shadow: 0 0 0 4px #fff, 0 4px 16px rgba(139,126,200,0.12);`;
-                        } else if (isNavigable) {
-                            classes += ' hover:scale-105 cursor-pointer';
                         } else {
-                            classes += ' opacity-40 pointer-events-none cursor-default';
+                            classes += ' hover:scale-105 hover:opacity-100 cursor-pointer';
                         }
 
                         const a = document.createElement('a');
-                        a.href = isNavigable ? `/memories/memory_details.html?id=${encodeURIComponent(m.id)}&order=${currentOrder}` : '#';
+                        a.href = isActive ? '#' : `/memories/memory_details.html?id=${encodeURIComponent(m.id)}&order=${currentOrder}`;
                         a.className = classes;
                         a.setAttribute('style', style);
                         a.title = m.title || '';
@@ -133,15 +130,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
 
                     // Friends
-                    if (mem.friends && mem.friends.length > 0) {
-                        const fNames = mem.friends.map(fid => {
-                            const u = data.usersData && data.usersData[fid.charAt(0).toUpperCase()] && data.usersData[fid.charAt(0).toUpperCase()][fid];
-                            return u ? (u.first_name || u.username || fid) : fid;
-                        });
-                        document.getElementById('memFriends').textContent = fNames.join(', ');
-                    } else {
-                        document.getElementById('memFriends').textContent = 'No friends included';
-                    }
+                    const rawFriends = Array.isArray(mem.friends) ? mem.friends : (mem.friends ? [mem.friends] : []);
+                    const friendUsers = data.friendUsers && typeof data.friendUsers === 'object' ? data.friendUsers : {};
+                    const fNames = rawFriends.map(entry => {
+                        if (!entry) return '';
+                        if (typeof entry === 'object') {
+                            const objKey = String(entry.email || entry.friend_id || entry.id || '').trim().toLowerCase();
+                            const matched = objKey ? friendUsers[objKey] : null;
+                            return entry.name || entry.first_name || entry.firstName || entry.username ||
+                                (matched && (matched.name || matched.first_name || matched.username)) ||
+                                entry.email || entry.friend_id || entry.id || '';
+                        }
+                        const key = String(entry).trim();
+                        if (!key) return '';
+                        const lookup = friendUsers[key.toLowerCase()];
+                        if (lookup) {
+                            return lookup.name || lookup.first_name || lookup.firstName || lookup.username || lookup.email || key;
+                        }
+                        const bucket = key.charAt(0).toUpperCase();
+                        const u = data.usersData && data.usersData[bucket] && (data.usersData[bucket][key] || data.usersData[bucket][key.toLowerCase()]);
+                        return u ? (u.name || u.first_name || u.username || key) : key;
+                    }).filter(Boolean);
+                    document.getElementById('memFriends').textContent = fNames.length > 0 ? fNames.join(', ') : 'No friends included';
 
                     // Media Gallery
                     const gallery = document.getElementById('mediaGallery');
@@ -241,7 +251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Extra details
                     const extraContainer = document.getElementById('extraDetails');
                     extraContainer.textContent = '';
-                    const skips = ['memory_id', 'id', 'owner', 'media', 'friends', 'title', 'date', 'location', 'description', 'tags', 'mood'];
+                    const skips = ['memory_id', 'id', 'owner', 'media', 'raw_media', 'friends', 'title', 'date', 'location', 'description', 'tags', 'mood'];
                     for (const [key, val] of Object.entries(mem)) {
                         if (skips.includes(key)) continue;
                         const disp = Array.isArray(val) ? val.join(', ') : (val === '' || val == null ? '—' : String(val));
@@ -352,7 +362,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('deleteBtn').addEventListener('click', async () => {
                 if (confirm('Are you sure you want to delete this memory? This cannot be undone.')) {
                     try {
-                        const delRes = await axios.delete('/api/memories/' + encodeURIComponent(memoryId));
+                        const delRes = await axios.delete('/api/memories/' + encodeURIComponent(memoryId) + '?order=' + encodeURIComponent(currentOrder));
                         if (delRes.data.redirectId) {
                             window.location.href = `/memories/memory_details.html?id=${encodeURIComponent(delRes.data.redirectId)}&order=${currentOrder}`;
                         } else {

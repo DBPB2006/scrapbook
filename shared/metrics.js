@@ -27,7 +27,10 @@ const httpErrorsTotal = new promClient.Counter({
 const metricsMiddleware = (req, res, next) => {
   const end = httpRequestDurationMicroseconds.startTimer();
   res.on('finish', () => {
-    const route = req.route ? req.route.path : req.path;
+    const matchedPath = req.route && req.route.path;
+    const route = matchedPath
+      ? `${req.baseUrl || ''}${matchedPath}`
+      : (req.baseUrl || (res.statusCode === 404 ? 'unmatched' : 'other'));
     const code = res.statusCode;
     const method = req.method;
 

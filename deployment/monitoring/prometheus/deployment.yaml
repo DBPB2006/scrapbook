@@ -9,6 +9,11 @@ metadata:
     app.kubernetes.io/part-of: memorybook
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: prometheus
@@ -25,7 +30,8 @@ spec:
         args:
         - "--config.file=/etc/prometheus/prometheus.yml"
         - "--storage.tsdb.path=/prometheus"
-        - "--storage.tsdb.retention.time=7d"
+        - "--storage.tsdb.retention.time=2d"
+        - "--storage.tsdb.retention.size=256MB"
         ports:
         - name: http
           containerPort: 9090
@@ -38,11 +44,11 @@ spec:
           mountPath: /prometheus
         resources:
           requests:
-            cpu: 100m
-            memory: 128Mi
+            cpu: 50m
+            memory: 112Mi
           limits:
-            cpu: 250m
-            memory: 512Mi
+            cpu: 200m
+            memory: 256Mi
         livenessProbe:
           httpGet:
             path: /-/healthy

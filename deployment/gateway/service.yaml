@@ -17,4 +17,23 @@ spec:
     targetPort: 3090
     nodePort: 30090
     protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service-metrics
+  namespace: memorybook
+  labels:
+    app: gateway-service
+    app.kubernetes.io/name: gateway-service
+    app.kubernetes.io/part-of: memorybook
+spec:
+  clusterIP: None
+  selector:
+    app: gateway-service
+  ports:
+  - name: metrics
+    port: 3091
+    targetPort: 3091
+    protocol: TCP
 

@@ -35,6 +35,10 @@ resource "aws_instance" "k3s" {
   iam_instance_profile        = aws_iam_instance_profile.k3s.name
   associate_public_ip_address = false
 
+  credit_specification {
+    cpu_credits = "standard"
+  }
+
   # Hop limit 2 enforces IMDSv2 while allowing pods in container network namespaces
   # to assume the K3s instance profile for private S3 media access.
   metadata_options {
@@ -71,6 +75,10 @@ resource "aws_instance" "jenkins" {
   iam_instance_profile        = aws_iam_instance_profile.jenkins.name
   associate_public_ip_address = false
 
+  credit_specification {
+    cpu_credits = "standard"
+  }
+
   metadata_options {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
@@ -104,6 +112,10 @@ resource "aws_instance" "mongodb" {
   vpc_security_group_ids      = [aws_security_group.mongodb.id]
   iam_instance_profile        = aws_iam_instance_profile.mongodb.name
   associate_public_ip_address = false
+
+  credit_specification {
+    cpu_credits = "standard"
+  }
 
   metadata_options {
     http_endpoint               = "enabled"

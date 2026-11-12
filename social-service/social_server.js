@@ -19,7 +19,6 @@ const {
 const metrics = hasLocalShared ? require('./shared/metrics') : require('../shared/metrics');
 const {
     normalizeEmail,
-    escapeRegex,
     friendEntryMatchesEmail,
     createIsAuthenticated,
     createIsInternalService,
@@ -213,23 +212,6 @@ async function saveUserToAuthService(userObj) {
     });
 }
 
-async function updateUserFriendsTransactional(usersCol, userEmail, bucketId, friends, session) {
-    const normalized = normalizeEmail(userEmail);
-    const filter = bucketId ? { bucket_id: bucketId, email: normalized } : { email: normalized };
-    const updateDoc = bucketId
-        ? { email: normalized, bucket_id: bucketId, friends }
-        : { email: normalized, friends };
-    let res = await usersCol.updateOne(filter, { $set: updateDoc }, { session });
-    if (!res || res.matchedCount === 0) {
-        res = await usersCol.updateOne(
-            { email: { $regex: new RegExp(`^${escapeRegex(normalized)}$`, 'i') } },
-            { $set: updateDoc },
-            { session }
-        );
-    }
-    return res;
-}
-
 function buildAuthorizedGraphState({ currentEmail, flatUsers, usersData, friendId = '' }) {
     const currentUser = flatUsers[currentEmail];
     if (!currentUser) {
@@ -421,22 +403,10 @@ app.post('/api/internal/friends/cleanup_user', isInternalService, async (req, re
         res.json({
             success: true,
             deletedCount: result.deletedCount,
-            deletedRequests: result.deletedRequests,
             s3Keys
         });
     } catch (err) {
         console.error('Internal friends cleanup error:', err.message);
-        res.status(500).json({ error: 'Database service unavailable' });
-    }
-});
-
-// POST /api/internal/friends/restore_cleanup - Compensating rollback for failed account deletion
-app.post('/api/internal/friends/restore_cleanup', isInternalService, async (req, res) => {
-    try {
-        await friendRequestStore.restore_user_requests((req.body && req.body.deletedRequests) || []);
-        res.json({ success: true });
-    } catch (err) {
-        console.error('Internal friends restore error:', err.message);
         res.status(500).json({ error: 'Database service unavailable' });
     }
 });
@@ -584,12 +554,9 @@ const handleSendFriendRequest = async (req, res) => {
             return res.status(400).json({ error: 'A pending friend request already exists between you and this user.' });
         }
 
-        let imgUrl = '';
-        if (req.file) {
-            imgUrl = req.file.provider === 's3'
-                ? { provider: 's3', key: req.file.key, mimeType: req.file.mimeType, fileName: req.file.fileName, size: req.file.size }
-                : 'uploads/friends/' + req.file.filename;
-        }
+        const imgUrl = req.file
+            ? { provider: 's3', key: req.file.key, mimeType: req.file.mimeType, fileName: req.file.fileName, size: req.file.size }
+            : '';
 
         const newRequest = {
             id: 'freq_' + crypto.randomBytes(6).toString('hex'),
@@ -704,10 +671,8 @@ app.post('/api/friends/requests/:id/accept', isAuthenticated, async (req, res) =
             return res.status(404).json({ error: 'One or both users in this friend request no longer exist.' });
         }
 
-        const origToFriends = JSON.parse(JSON.stringify(dedupeFriends(toUser.friends || [])));
-        const origFromFriends = JSON.parse(JSON.stringify(dedupeFriends(fromUser.friends || [])));
-        const updatedToFriends = JSON.parse(JSON.stringify(origToFriends));
-        const updatedFromFriends = JSON.parse(JSON.stringify(origFromFriends));
+        const updatedToFriends = JSON.parse(JSON.stringify(dedupeFriends(toUser.friends || [])));
+        const updatedFromFriends = JSON.parse(JSON.stringify(dedupeFriends(fromUser.friends || [])));
         const nowIso = new Date().toISOString();
 
         if (!hasFriendEntry(updatedToFriends, fromEmail)) {
@@ -737,85 +702,22 @@ app.post('/api/friends/requests/:id/accept', isAuthenticated, async (req, res) =
         const finalToFriends = dedupeFriends(updatedToFriends);
         const finalFromFriends = dedupeFriends(updatedFromFriends);
 
-        const useTx = mongodb && typeof mongodb.canUseTransactions === 'function' && await mongodb.canUseTransactions();
-        let txCompleted = false;
-
-        if (useTx) {
-            const client = mongodb.getClient();
-            const session = client.startSession();
-            try {
-                await session.withTransaction(async () => {
-                    const claimed = await friendRequestStore.claim_pending_request(requestId, currentEmail, 'accepted', session);
-                    if (!claimed) {
-                        const conflictErr = new Error('Friend request was already processed.');
-                        conflictErr.statusCode = 400;
-                        throw conflictErr;
-                    }
-                    const usersCol = mongodb.getCollection(mongodb.COLLECTIONS.USERS);
-                    const toRes = await updateUserFriendsTransactional(usersCol, toEmail, toUser.bucket_id, finalToFriends, session);
-                    const fromRes = await updateUserFriendsTransactional(usersCol, fromEmail, fromUser.bucket_id, finalFromFriends, session);
-                    if (!toRes || toRes.matchedCount !== 1 || !fromRes || fromRes.matchedCount !== 1) {
-                        throw new Error('Failed to match user documents during friendship transaction.');
-                    }
-                });
-                txCompleted = true;
-            } catch (txErr) {
-                if (txErr.statusCode) {
-                    return res.status(txErr.statusCode).json({ error: txErr.message });
-                }
-                if (!(mongodb && mongodb.isUnsupportedTransactionError(txErr))) {
-                    console.error('Accept friend transaction aborted cleanly:', txErr.message);
-                    return res.status(500).json({ error: 'Failed to accept friend request cleanly. No changes were committed.' });
-                }
-            } finally {
-                if (typeof session.endSession === 'function') {
-                    await session.endSession();
-                }
+        const claimed = await friendRequestStore.claim_pending_request(requestId, currentEmail, 'accepted');
+        if (!claimed) {
+            const latest = await friendRequestStore.get_request_by_id(requestId);
+            if (!latest) {
+                return res.status(404).json({ error: 'Friend request not found.' });
             }
+            if (normalizeEmail(latest.to) !== currentEmail) {
+                return res.status(403).json({ error: 'Unauthorized: You can only accept requests sent to you.' });
+            }
+            return res.status(400).json({ error: `Request cannot be accepted because its status is '${latest.status}'.` });
         }
 
-        if (!txCompleted) {
-            const claimed = await friendRequestStore.claim_pending_request(requestId, currentEmail, 'accepted');
-            if (!claimed) {
-                const latest = await friendRequestStore.get_request_by_id(requestId);
-                if (!latest) {
-                    return res.status(404).json({ error: 'Friend request not found.' });
-                }
-                if (normalizeEmail(latest.to) !== currentEmail) {
-                    return res.status(403).json({ error: 'Unauthorized: You can only accept requests sent to you.' });
-                }
-                return res.status(400).json({ error: `Request cannot be accepted because its status is '${latest.status}'.` });
-            }
-
-            try {
-                await saveUserToAuthService({ ...toUser, email: toEmail, friends: finalToFriends });
-            } catch (toSaveErr) {
-                try {
-                    await friendRequestStore.revert_request_status(requestId, 'accepted', 'pending');
-                } catch (revertErr) {
-                    console.error('Critical rollback failure reverting request status after toUser save error:', revertErr.message);
-                }
-                console.error('Failed saving recipient friendship:', toSaveErr.message);
-                return res.status(500).json({ error: 'Failed to persist friendship update. Changes were rolled back.' });
-            }
-
-            try {
-                await saveUserToAuthService({ ...fromUser, email: fromEmail, friends: finalFromFriends });
-            } catch (fromSaveErr) {
-                try {
-                    await saveUserToAuthService({ ...toUser, email: toEmail, friends: origToFriends });
-                } catch (rollbackToErr) {
-                    console.error('Critical rollback failure restoring recipient friends:', rollbackToErr.message);
-                }
-                try {
-                    await friendRequestStore.revert_request_status(requestId, 'accepted', 'pending');
-                } catch (revertErr) {
-                    console.error('Critical rollback failure reverting request status:', revertErr.message);
-                }
-                console.error('Failed saving sender friendship:', fromSaveErr.message);
-                return res.status(500).json({ error: 'Failed to persist reciprocal friendship. Changes were rolled back.' });
-            }
-        }
+        await Promise.all([
+            saveUserToAuthService({ ...toUser, email: toEmail, friends: finalToFriends }),
+            saveUserToAuthService({ ...fromUser, email: fromEmail, friends: finalFromFriends })
+        ]);
 
         res.json({ success: true, message: 'Friend request accepted successfully' });
     } catch (err) {
@@ -928,7 +830,6 @@ app.delete('/api/friends/:id', isAuthenticated, async (req, res) => {
                 ? normalizeEmail(targetFriendRecord.email)
                 : (friendId.includes('@') ? normalizeEmail(friendId) : null));
 
-        const origCurrentFriends = JSON.parse(JSON.stringify(currentUser.friends));
         const updatedCurrentFriends = currentUser.friends.filter(f => f !== targetFriendRecord);
 
         let otherUser = null;
@@ -941,54 +842,9 @@ app.delete('/api/friends/:id', isAuthenticated, async (req, res) => {
             }
         }
 
-        const useTx = mongodb && typeof mongodb.canUseTransactions === 'function' && await mongodb.canUseTransactions();
-        let txCompleted = false;
-
-        if (useTx) {
-            const client = mongodb.getClient();
-            const session = client.startSession();
-            try {
-                await session.withTransaction(async () => {
-                    const usersCol = mongodb.getCollection(mongodb.COLLECTIONS.USERS);
-                    const curRes = await updateUserFriendsTransactional(usersCol, currentEmail, currentUser.bucket_id, updatedCurrentFriends, session);
-                    if (!curRes || curRes.matchedCount !== 1) {
-                        throw new Error('Failed to match current user document during friend removal transaction.');
-                    }
-                    if (otherUser && updatedOtherFriends !== null) {
-                        const otherRes = await updateUserFriendsTransactional(usersCol, targetEmail, otherUser.bucket_id, updatedOtherFriends, session);
-                        if (!otherRes || otherRes.matchedCount !== 1) {
-                            throw new Error('Failed to match target user document during friend removal transaction.');
-                        }
-                    }
-                });
-                txCompleted = true;
-            } catch (txErr) {
-                if (!(mongodb && mongodb.isUnsupportedTransactionError(txErr))) {
-                    console.error('Delete friend transaction aborted cleanly:', txErr.message);
-                    return res.status(500).json({ error: 'Failed to remove friend cleanly. No changes were committed.' });
-                }
-            } finally {
-                if (typeof session.endSession === 'function') {
-                    await session.endSession();
-                }
-            }
-        }
-
-        if (!txCompleted) {
-            await saveUserToAuthService({ ...currentUser, email: currentEmail, friends: updatedCurrentFriends });
-
-            if (otherUser && updatedOtherFriends !== null) {
-                try {
-                    await saveUserToAuthService({ ...otherUser, email: targetEmail, friends: updatedOtherFriends });
-                } catch (otherSaveErr) {
-                    try {
-                        await saveUserToAuthService({ ...currentUser, email: currentEmail, friends: origCurrentFriends });
-                    } catch (rollbackErr) {
-                        console.error('Critical rollback failure during delete friend:', rollbackErr.message);
-                    }
-                    throw otherSaveErr;
-                }
-            }
+        await saveUserToAuthService({ ...currentUser, email: currentEmail, friends: updatedCurrentFriends });
+        if (otherUser && updatedOtherFriends !== null) {
+            await saveUserToAuthService({ ...otherUser, email: targetEmail, friends: updatedOtherFriends });
         }
 
         res.json({ success: true, message: 'Friend removed' });

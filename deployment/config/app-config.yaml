@@ -6,7 +6,8 @@ metadata:
   labels:
     app.kubernetes.io/part-of: scrapbook
 data:
-  NODE_OPTIONS: "--max-old-space-size=96"
+  NODE_ENV: "production"
+  NODE_OPTIONS: "--max-old-space-size=160"
   AWS_REGION: "ap-south-1"
   # Populated during Jenkins deployment from Terraform output media_bucket_name
   AWS_S3_BUCKET: "<MEDIA_S3_BUCKET>"

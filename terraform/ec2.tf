@@ -153,9 +153,6 @@ resource "aws_ebs_volume" "mongodb_data" {
     Name = "${local.name_prefix}-mongodb-data"
   }
 
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 resource "aws_volume_attachment" "mongodb_data" {

@@ -13,14 +13,14 @@ spec:
     kind: Deployment
     name: scrapbook-auth
   minReplicas: 1
-  maxReplicas: 1
+  maxReplicas: 2
   metrics:
   - type: Resource
     resource:
       name: cpu
       target:
         type: Utilization
-        averageUtilization: 75
+        averageUtilization: 60
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 120

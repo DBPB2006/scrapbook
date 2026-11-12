@@ -413,6 +413,7 @@ S3Storage.prototype._handleFile = function _handleFile(req, file, cb) {
             }
         });
         uploadPromise = upload.done();
+        uploadPromise.catch((err) => fail(err));
         passThrough.write(initialBuf);
     };
 
@@ -625,6 +626,104 @@ function extractS3Keys(value, collected = new Set()) {
 }
 
 /**
+ * Filters candidate S3 keys to return only those not referenced anywhere in MongoDB.
+ */
+async function filterUnreferencedS3Keys(mongodb, candidateKeys) {
+    if (!Array.isArray(candidateKeys) || candidateKeys.length === 0) return [];
+    const uniqueCandidates = [...new Set(candidateKeys.filter(k => typeof k === 'string' && k.trim()))];
+    if (uniqueCandidates.length === 0) return [];
+
+    if (!mongodb || typeof mongodb.isConnected !== 'function' || !mongodb.isConnected()) {
+        console.warn('MongoDB disconnected; skipping S3 cleanup to avoid data loss.');
+        return [];
+    }
+
+    const stillReferenced = new Set();
+    const referenceQueries = [
+        {
+            colName: mongodb.COLLECTIONS.USERS,
+            filter: {
+                $or: [
+                    { 'profile_pic.key': { $in: uniqueCandidates } },
+                    { 'friends.image_url.key': { $in: uniqueCandidates } },
+                    { profile_pic: { $in: uniqueCandidates } },
+                    { 'friends.image_url': { $in: uniqueCandidates } }
+                ]
+            },
+            projection: { _id: 0, profile_pic: 1, 'friends.image_url': 1 }
+        },
+        {
+            colName: mongodb.COLLECTIONS.MEMORIES,
+            filter: {
+                $or: [
+                    { 'media.url.key': { $in: uniqueCandidates } },
+                    { 'media.path.key': { $in: uniqueCandidates } },
+                    { 'media.key': { $in: uniqueCandidates } },
+                    { 'image.key': { $in: uniqueCandidates } },
+                    { 'image.url.key': { $in: uniqueCandidates } }
+                ]
+            },
+            projection: { _id: 0, media: 1, image: 1 }
+        },
+        {
+            colName: mongodb.COLLECTIONS.FRIEND_REQUESTS,
+            filter: {
+                $or: [
+                    { 'image_url.key': { $in: uniqueCandidates } },
+                    { image_url: { $in: uniqueCandidates } }
+                ]
+            },
+            projection: { _id: 0, image_url: 1 }
+        },
+        {
+            colName: mongodb.COLLECTIONS.SHARED_MEMORIES,
+            filter: {
+                $or: [
+                    { 'attachments.key': { $in: uniqueCandidates } },
+                    { 'attachments.url.key': { $in: uniqueCandidates } },
+                    { 'media.url.key': { $in: uniqueCandidates } },
+                    { 'media.path.key': { $in: uniqueCandidates } },
+                    { 'media.key': { $in: uniqueCandidates } },
+                    { 'image.key': { $in: uniqueCandidates } },
+                    { 'image.url.key': { $in: uniqueCandidates } }
+                ]
+            },
+            projection: { _id: 0, attachments: 1, media: 1, image: 1 }
+        },
+        {
+            colName: mongodb.COLLECTIONS.TIME_CAPSULES,
+            filter: {
+                $or: [
+                    { 'media.path.key': { $in: uniqueCandidates } },
+                    { 'media.url.key': { $in: uniqueCandidates } },
+                    { 'media.key': { $in: uniqueCandidates } }
+                ]
+            },
+            projection: { _id: 0, media: 1 }
+        }
+    ];
+
+    for (const { colName, filter, projection } of referenceQueries) {
+        try {
+            const col = mongodb.getCollection(colName);
+            if (!col || typeof col.find !== 'function') {
+                console.warn(`S3 reference check unavailable for ${colName}; skipping S3 cleanup to avoid data loss.`);
+                return [];
+            }
+            const docs = await col.find(filter, { projection }).toArray();
+            for (const doc of docs) {
+                extractS3Keys(doc, stillReferenced);
+            }
+        } catch (err) {
+            console.warn(`S3 reference check failed for ${colName}; skipping S3 cleanup to avoid data loss:`, err.message);
+            return [];
+        }
+    }
+
+    return uniqueCandidates.filter(k => !stillReferenced.has(k));
+}
+
+/**
  * Sanitizes a filename to protect against path traversal and header injection.
  */
 function sanitizeFileName(fileName) {
@@ -727,6 +826,7 @@ module.exports = {
     deleteS3Object,
     deleteS3Objects,
     extractS3Keys,
+    filterUnreferencedS3Keys,
     getMediaUrl,
     getDownloadUrl
 };

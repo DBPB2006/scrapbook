@@ -317,34 +317,19 @@ function paginateMemories(memories, pageQuery, limitQuery) {
     };
 }
 
-/**
- * Deletes all memories owned by a user and removes their references from other users' memory friends arrays.
- * Returns snapshot data for compensating rollback and candidate S3 keys for post-commit cleanup.
- */
-async function cleanup_user_data(userEmail, session = null) {
+async function cleanup_user_data(userEmail) {
     const normalized = normalizeEmail(userEmail);
     if (!normalized) {
-        return { deletedCount: 0, modifiedFriendRefsCount: 0, deletedMemories: [], modifiedMemories: [] };
+        return { deletedCount: 0, modifiedFriendRefsCount: 0, deletedMemories: [] };
     }
 
     const collection = getMemoriesCollection();
-    const opts = session ? { session } : {};
     const regex = new RegExp(`^${escapeRegex(normalized)}$`, 'i');
+    const ownerFilter = { $or: [{ owner: normalized }, { owner: { $regex: regex } }] };
 
-    const ownedMemories = await collection.find({
-        $or: [{ owner: normalized }, { owner: { $regex: regex } }]
-    }, opts).toArray();
-
-    const deletedMemories = ownedMemories.map(m => {
-        const copy = { ...m };
-        delete copy._id;
-        return copy;
-    });
-
+    const ownedMemories = await collection.find(ownerFilter, { projection: { _id: 0, media: 1, image: 1 } }).toArray();
     if (ownedMemories.length > 0) {
-        await collection.deleteMany({
-            $or: [{ owner: normalized }, { owner: { $regex: regex } }]
-        }, opts);
+        await collection.deleteMany(ownerFilter);
     }
 
     const remainingMemories = await collection.find({
@@ -358,69 +343,29 @@ async function cleanup_user_data(userEmail, session = null) {
             { 'friends.id': normalized },
             { 'friends.id': regex }
         ]
-    }, { projection: { _id: 0, memory_id: 1, friends: 1 }, ...opts }).toArray();
-    const modifiedMemories = [];
+    }, { projection: { _id: 0, memory_id: 1, friends: 1 } }).toArray();
+
+    let modifiedFriendRefsCount = 0;
     for (const mem of remainingMemories) {
         if (!Array.isArray(mem.friends) || mem.friends.length === 0) continue;
         const { changed, updated } = removeEmailFromFriendsArray(mem.friends, normalized);
         if (changed) {
-            modifiedMemories.push({
-                memory_id: mem.memory_id,
-                previousFriends: JSON.parse(JSON.stringify(mem.friends))
-            });
             await collection.updateOne(
                 { memory_id: mem.memory_id },
-                { $set: { friends: updated } },
-                opts
+                { $set: { friends: updated } }
             );
+            modifiedFriendRefsCount++;
         }
     }
 
     return {
-        deletedCount: deletedMemories.length,
-        modifiedFriendRefsCount: modifiedMemories.length,
-        deletedMemories,
-        modifiedMemories
+        deletedCount: ownedMemories.length,
+        modifiedFriendRefsCount,
+        deletedMemories: ownedMemories
     };
 }
 
-/**
- * Compensating rollback helper for memory cleanup.
- */
-async function restore_user_cleanup(snapshot) {
-    if (!snapshot || typeof snapshot !== 'object') return false;
-    const collection = getMemoriesCollection();
-
-    if (Array.isArray(snapshot.deletedMemories)) {
-        for (const mem of snapshot.deletedMemories) {
-            if (!mem || !mem.memory_id) continue;
-            const cleanMem = { ...mem };
-            delete cleanMem._id;
-            await collection.updateOne(
-                { memory_id: cleanMem.memory_id },
-                { $set: cleanMem },
-                { upsert: true }
-            );
-        }
-    }
-
-    if (Array.isArray(snapshot.modifiedMemories)) {
-        for (const item of snapshot.modifiedMemories) {
-            if (!item || !item.memory_id) continue;
-            await collection.updateOne(
-                { memory_id: item.memory_id },
-                { $set: { friends: item.previousFriends || [] } }
-            );
-        }
-    }
-
-    return true;
-}
-
-/**
- * Updates a user's email across owned memories and friends arrays on all memories.
- */
-async function update_user_email(oldEmail, newEmail, session = null) {
+async function update_user_email(oldEmail, newEmail) {
     const oldNorm = normalizeEmail(oldEmail);
     const newNorm = normalizeEmail(newEmail);
     if (!oldNorm || !newNorm || oldNorm === newNorm) {
@@ -428,13 +373,11 @@ async function update_user_email(oldEmail, newEmail, session = null) {
     }
 
     const collection = getMemoriesCollection();
-    const opts = session ? { session } : {};
     const regex = new RegExp(`^${escapeRegex(oldNorm)}$`, 'i');
 
     const ownerRes = await collection.updateMany(
         { $or: [{ owner: oldNorm }, { owner: { $regex: regex } }] },
-        { $set: { owner: newNorm } },
-        opts
+        { $set: { owner: newNorm } }
     );
 
     const taggedMemories = await collection.find({
@@ -448,7 +391,7 @@ async function update_user_email(oldEmail, newEmail, session = null) {
             { 'friends.id': oldNorm },
             { 'friends.id': regex }
         ]
-    }, { projection: { _id: 0, memory_id: 1, friends: 1 }, ...opts }).toArray();
+    }, { projection: { _id: 0, memory_id: 1, friends: 1 } }).toArray();
     let friendRefsUpdatedCount = 0;
     for (const mem of taggedMemories) {
         if (!Array.isArray(mem.friends) || mem.friends.length === 0) continue;
@@ -456,8 +399,7 @@ async function update_user_email(oldEmail, newEmail, session = null) {
         if (changed) {
             await collection.updateOne(
                 { memory_id: mem.memory_id },
-                { $set: { friends: updated } },
-                opts
+                { $set: { friends: updated } }
             );
             friendRefsUpdatedCount++;
         }
@@ -481,6 +423,5 @@ module.exports = {
     delete_memory,
     sortMemoriesChronologically,
     cleanup_user_data,
-    restore_user_cleanup,
     update_user_email
 };

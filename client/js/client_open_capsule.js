@@ -32,12 +32,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 // Populate main details
-                const rDate = new Date(capsule.reveal_date.replace(' ', 'T') + 'Z');
-                const pad = (n) => n.toString().padStart(2, '0');
-                const displayReveal = isNaN(rDate.getTime()) ? capsule.reveal_date : `${rDate.getFullYear()}-${pad(rDate.getMonth()+1)}-${pad(rDate.getDate())} ${pad(rDate.getHours())}:${pad(rDate.getMinutes())}:${pad(rDate.getSeconds())}`;
-                
-                const cDate = new Date(capsule.created_at.replace(' ', 'T') + 'Z');
-                const displayCreated = isNaN(cDate.getTime()) ? capsule.created_at : `${cDate.getFullYear()}-${pad(cDate.getMonth()+1)}-${pad(cDate.getDate())} ${pad(cDate.getHours())}:${pad(cDate.getMinutes())}:${pad(cDate.getSeconds())}`;
+                const displayReveal = window.ScrapbookConfig.formatLocalDateTime(capsule.reveal_date);
+                const displayCreated = window.ScrapbookConfig.formatLocalDateTime(capsule.created_at);
 
                 document.getElementById('capFrom').textContent = capsule.user_email;
                 document.getElementById('capReveals').textContent = displayReveal || '-';
@@ -55,8 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ocList.textContent = '';
                 if (otherCapsules && otherCapsules.length > 0) {
                     otherCapsules.forEach(oc => {
-                        const ocRDate = new Date(oc.reveal_date.replace(' ', 'T') + 'Z');
-                        const ocDisplayReveal = isNaN(ocRDate.getTime()) ? oc.reveal_date : `${ocRDate.getFullYear()}-${pad(ocRDate.getMonth()+1)}-${pad(ocRDate.getDate())} ${pad(ocRDate.getHours())}:${pad(ocRDate.getMinutes())}:${pad(ocRDate.getSeconds())}`;
+                        const ocDisplayReveal = window.ScrapbookConfig.formatLocalDateTime(oc.reveal_date);
 
                         const li = document.createElement('li');
                         li.className = 'mb-3';

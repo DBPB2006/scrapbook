@@ -142,6 +142,26 @@
         }
     }
 
+    function parseUtcDate(raw) {
+        if (!raw) return null;
+        if (raw instanceof Date) return isNaN(raw.getTime()) ? null : raw;
+        const str = String(raw).trim();
+        if (!str) return null;
+        const iso = str.replace(' ', 'T');
+        const withTz = /(Z|[+-]\d{2}:?\d{2})$/i.test(iso) ? iso : `${iso}Z`;
+        const parsed = new Date(withTz);
+        if (!isNaN(parsed.getTime())) return parsed;
+        const fallback = new Date(str);
+        return isNaN(fallback.getTime()) ? null : fallback;
+    }
+
+    function formatLocalDateTime(raw) {
+        const d = parseUtcDate(raw);
+        if (!d) return raw ? String(raw) : '-';
+        const pad = (n) => n.toString().padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
     // Single unified global configuration object
     window.ScrapbookConfig = {
         API_BASE_URL: API_BASE_URL,
@@ -149,7 +169,9 @@
         sanitizeUrl: sanitizeUrl,
         setTextWithBreaks: setTextWithBreaks,
         resolveMediaUrl: resolveMediaUrl,
-        getCleanExtension: getCleanExtension
+        getCleanExtension: getCleanExtension,
+        parseUtcDate: parseUtcDate,
+        formatLocalDateTime: formatLocalDateTime
     };
 
     // Configure Axios defaults and interceptors if Axios is loaded

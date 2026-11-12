@@ -17,8 +17,8 @@ class BinaryMinHeap {
         if (priority instanceof Date) return priority.getTime();
         if (typeof priority === 'number') return priority;
         // Parse date strings formatted as 'YYYY-MM-DD HH:mm:ss' or ISO
-        const iso = String(priority).replace(' ', 'T');
-        const ts = new Date(iso.includes('Z') || iso.includes('+') ? iso : iso + 'Z').getTime();
+        const iso = String(priority).trim().replace(' ', 'T');
+        const ts = new Date(/(Z|[+-]\d{2}:?\d{2})$/i.test(iso) ? iso : `${iso}Z`).getTime();
         if (!isNaN(ts)) return ts;
         const fallback = new Date(priority).getTime();
         return isNaN(fallback) ? Infinity : fallback;

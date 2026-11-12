@@ -16,4 +16,22 @@ spec:
     port: 3004
     targetPort: 3004
     protocol: TCP
-
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sharing-service-metrics
+  namespace: scrapbook
+  labels:
+    app: sharing-service
+    app.kubernetes.io/name: sharing-service
+    app.kubernetes.io/part-of: scrapbook
+spec:
+  clusterIP: None
+  selector:
+    app: sharing-service
+  ports:
+  - name: http
+    port: 3004
+    targetPort: 3004
+    protocol: TCP

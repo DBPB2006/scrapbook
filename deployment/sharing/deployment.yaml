@@ -50,7 +50,7 @@ spec:
             memory: 128Mi
           limits:
             cpu: 200m
-            memory: 224Mi
+            memory: 256Mi
         livenessProbe:
           httpGet:
             path: /health/live

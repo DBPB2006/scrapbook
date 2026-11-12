@@ -2,10 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
-RUN npm i -g npm@10.9.9
-
 COPY auth-service/package*.json ./
-RUN npm i
+RUN npm ci --omit=dev
 
 COPY auth-service/ ./
 COPY shared/ ./shared/

@@ -26,10 +26,6 @@ function computePendingPairKey(email1, email2) {
     return [u1, u2].sort().join('|');
 }
 
-/**
- * Finds any pending friend request between two users in either direction.
- * Utilizes the compound index on { from: 1, to: 1, status: 1 }.
- */
 async function find_pending_between(email1, email2) {
     const u1 = normalizeEmail(email1);
     const u2 = normalizeEmail(email2);
@@ -52,10 +48,6 @@ async function find_pending_between(email1, email2) {
     }
 }
 
-/**
- * Retrieves incoming pending requests for a user.
- * Utilizes the index on { to: 1, status: 1 }.
- */
 async function get_incoming_requests(toEmail) {
     const target = normalizeEmail(toEmail);
     if (!target) return [];
@@ -69,10 +61,6 @@ async function get_incoming_requests(toEmail) {
     }
 }
 
-/**
- * Retrieves outgoing pending requests sent by a user.
- * Utilizes the index on { from: 1, status: 1 }.
- */
 async function get_outgoing_requests(fromEmail) {
     const source = normalizeEmail(fromEmail);
     if (!source) return [];
@@ -86,10 +74,6 @@ async function get_outgoing_requests(fromEmail) {
     }
 }
 
-/**
- * Retrieves a friend request by its unique ID.
- * Utilizes the unique index on { id: 1 }.
- */
 async function get_request_by_id(id) {
     if (!id || typeof id !== 'string') return null;
 
@@ -102,9 +86,6 @@ async function get_request_by_id(id) {
     }
 }
 
-/**
- * Creates or upserts a friend request in MongoDB.
- */
 async function add_request(request) {
     if (!request || !request.id) return null;
     request.from = normalizeEmail(request.from);
@@ -131,10 +112,9 @@ async function add_request(request) {
 }
 
 /**
- * Atomically transitions a pending friend request to targetStatus ('accepted' or 'declined')
- * using findOneAndUpdate to prevent concurrent duplicate acceptance races.
+ * Atomically transitions a pending friend request to 'accepted' or 'declined'.
  */
-async function claim_pending_request(id, recipientEmail, targetStatus = 'accepted', session = null) {
+async function claim_pending_request(id, recipientEmail, targetStatus = 'accepted') {
     if (!id || typeof id !== 'string') return null;
     const target = normalizeEmail(recipientEmail);
     if (!target) return null;
@@ -145,12 +125,11 @@ async function claim_pending_request(id, recipientEmail, targetStatus = 'accepte
         const res = await collection.findOneAndUpdate(
             { id, status: 'pending' },
             { $set: { status: targetStatus, updated_at: now, pending_pair_key: null } },
-            { returnDocument: 'before', ...(session ? { session } : {}) }
+            { returnDocument: 'before' }
         );
         const doc = (res && typeof res === 'object' && 'value' in res && 'ok' in res) ? res.value : res;
         if (!doc) return null;
         if (normalizeEmail(doc.to) !== target) {
-            // Undo status change if somehow matched against mismatched casing recipient
             await collection.updateOne(
                 { id, status: targetStatus },
                 {
@@ -159,8 +138,7 @@ async function claim_pending_request(id, recipientEmail, targetStatus = 'accepte
                         updated_at: doc.updated_at || now,
                         pending_pair_key: computePendingPairKey(doc.from, doc.to)
                     }
-                },
-                session ? { session } : {}
+                }
             );
             return null;
         }
@@ -171,39 +149,6 @@ async function claim_pending_request(id, recipientEmail, targetStatus = 'accepte
     }
 }
 
-/**
- * Compensating rollback helper: reverts request status (e.g. 'accepted' -> 'pending')
- * when a non-transactional downstream persistence step fails.
- */
-async function revert_request_status(id, expectedStatus = 'accepted', targetStatus = 'pending') {
-    if (!id || typeof id !== 'string') return false;
-    const now = new Date().toISOString();
-
-    const collection = getRequestsCollection();
-    try {
-        const patch = { status: targetStatus, updated_at: now };
-        if (targetStatus === 'pending') {
-            const existing = await collection.findOne({ id });
-            if (existing) {
-                patch.pending_pair_key = computePendingPairKey(existing.from, existing.to);
-            }
-        } else {
-            patch.pending_pair_key = null;
-        }
-        const res = await collection.updateOne(
-            { id, status: expectedStatus },
-            { $set: patch }
-        );
-        return res.matchedCount > 0;
-    } catch (err) {
-        console.error('Scrapbook Social: MongoDB revert_request_status error:', err.message);
-        throw new Error(`Failed to revert friend request status in MongoDB: ${err.message}`);
-    }
-}
-
-/**
- * Cancels / deletes an outgoing friend request.
- */
 async function delete_request(id, fromEmail, options = {}) {
     if (!id) return false;
     const source = normalizeEmail(fromEmail);
@@ -222,17 +167,13 @@ async function delete_request(id, fromEmail, options = {}) {
     }
 }
 
-/**
- * Removes all friend requests sent or received by a deleted user account.
- */
-async function cleanup_user_requests(userEmail, session = null) {
+async function cleanup_user_requests(userEmail) {
     const target = normalizeEmail(userEmail);
     if (!target) {
         return { deletedCount: 0, deletedRequests: [] };
     }
 
     const collection = getRequestsCollection();
-    const opts = session ? { session } : {};
     const regex = new RegExp(`^${escapeRegex(target)}$`, 'i');
     const filter = {
         $or: [
@@ -243,54 +184,25 @@ async function cleanup_user_requests(userEmail, session = null) {
         ]
     };
 
-    const matches = await collection.find(filter, opts).toArray();
-    const deletedRequests = matches.map(r => {
-        const copy = { ...r };
-        delete copy._id;
-        return copy;
-    });
-
+    const matches = await collection.find(filter, { projection: { _id: 0, image_url: 1 } }).toArray();
     if (matches.length > 0) {
-        await collection.deleteMany(filter, opts);
+        await collection.deleteMany(filter);
     }
 
     return {
-        deletedCount: deletedRequests.length,
-        deletedRequests
+        deletedCount: matches.length,
+        deletedRequests: matches
     };
 }
 
-/**
- * Compensating rollback helper for deleted friend requests.
- */
-async function restore_user_requests(deletedRequests) {
-    if (!Array.isArray(deletedRequests) || deletedRequests.length === 0) return true;
-    const collection = getRequestsCollection();
-    for (const reqDoc of deletedRequests) {
-        if (!reqDoc || !reqDoc.id) continue;
-        const cleanDoc = { ...reqDoc };
-        delete cleanDoc._id;
-        await collection.updateOne(
-            { id: cleanDoc.id },
-            { $set: cleanDoc },
-            { upsert: true }
-        );
-    }
-    return true;
-}
-
-/**
- * Updates from/to email references when a user changes their email address.
- */
-async function update_user_email(oldEmail, newEmail, session = null) {
+async function update_user_email(oldEmail, newEmail) {
     const oldNorm = normalizeEmail(oldEmail);
     const newNorm = normalizeEmail(newEmail);
     if (!oldNorm || !newNorm || oldNorm === newNorm) {
-        return { updatedCount: 0, previousDocs: [] };
+        return { updatedCount: 0 };
     }
 
     const collection = getRequestsCollection();
-    const opts = session ? { session } : {};
     const regex = new RegExp(`^${escapeRegex(oldNorm)}$`, 'i');
     const matches = await collection.find({
         $or: [
@@ -299,25 +211,16 @@ async function update_user_email(oldEmail, newEmail, session = null) {
             { from: { $regex: regex } },
             { to: { $regex: regex } }
         ]
-    }, opts).toArray();
+    }).toArray();
 
-    const previousDocs = [];
     let updatedCount = 0;
     for (const doc of matches) {
-        const fromNorm = normalizeEmail(doc.from);
-        const toNorm = normalizeEmail(doc.to);
-        const nextFrom = fromNorm === oldNorm ? newNorm : doc.from;
-        const nextTo = toNorm === oldNorm ? newNorm : doc.to;
+        const nextFrom = normalizeEmail(doc.from) === oldNorm ? newNorm : doc.from;
+        const nextTo = normalizeEmail(doc.to) === oldNorm ? newNorm : doc.to;
         const nextPairKey = doc.status === 'pending'
             ? computePendingPairKey(nextFrom, nextTo)
             : null;
         if (nextFrom !== doc.from || nextTo !== doc.to || (doc.status === 'pending' && nextPairKey !== doc.pending_pair_key)) {
-            previousDocs.push({
-                id: doc.id,
-                from: doc.from,
-                to: doc.to,
-                pending_pair_key: doc.pending_pair_key
-            });
             const patch = {
                 from: nextFrom,
                 to: nextTo,
@@ -326,16 +229,12 @@ async function update_user_email(oldEmail, newEmail, session = null) {
             if (doc.status === 'pending') {
                 patch.pending_pair_key = nextPairKey;
             }
-            await collection.updateOne(
-                { id: doc.id },
-                { $set: patch },
-                opts
-            );
+            await collection.updateOne({ id: doc.id }, { $set: patch });
             updatedCount++;
         }
     }
 
-    return { updatedCount, previousDocs };
+    return { updatedCount };
 }
 
 module.exports = {
@@ -346,9 +245,7 @@ module.exports = {
     get_request_by_id,
     add_request,
     claim_pending_request,
-    revert_request_status,
     delete_request,
     cleanup_user_requests,
-    restore_user_requests,
     update_user_email
 };

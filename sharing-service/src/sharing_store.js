@@ -366,10 +366,7 @@ async function unlock_capsule(id) {
     }
 }
 
-/**
- * Cleans up shared memories and time capsules associated with a deleted account.
- */
-async function cleanup_user_data(userEmail, session = null) {
+async function cleanup_user_data(userEmail) {
     const target = normalizeEmail(userEmail);
     if (!target) {
         return {
@@ -377,14 +374,12 @@ async function cleanup_user_data(userEmail, session = null) {
             modifiedSharesCount: 0,
             deletedCapsulesCount: 0,
             deletedShares: [],
-            modifiedShares: [],
             deletedCapsules: []
         };
     }
 
     const sharesCol = getSharedMemoriesCollection();
     const capsulesCol = getTimeCapsulesCollection();
-    const opts = session ? { session } : {};
     const regex = new RegExp(`^${escapeRegex(target)}$`, 'i');
 
     const shareFilter = {
@@ -396,15 +391,11 @@ async function cleanup_user_data(userEmail, session = null) {
         ]
     };
 
-    const matchedShares = await sharesCol.find(shareFilter, opts).toArray();
-    const deletedShares = matchedShares.map(s => {
-        const copy = { ...s };
-        delete copy._id;
-        return copy;
-    });
-
+    const matchedShares = await sharesCol.find(shareFilter, {
+        projection: { _id: 0, attachments: 1, media: 1, image: 1 }
+    }).toArray();
     if (matchedShares.length > 0) {
-        await sharesCol.deleteMany(shareFilter, opts);
+        await sharesCol.deleteMany(shareFilter);
     }
 
     const remainingShares = await sharesCol.find({
@@ -418,21 +409,18 @@ async function cleanup_user_data(userEmail, session = null) {
             { 'friends.id': target },
             { 'friends.id': regex }
         ]
-    }, { projection: { _id: 0, memory_id: 1, friends: 1 }, ...opts }).toArray();
-    const modifiedShares = [];
+    }, { projection: { _id: 0, memory_id: 1, friends: 1 } }).toArray();
+
+    let modifiedSharesCount = 0;
     for (const s of remainingShares) {
         if (!Array.isArray(s.friends) || s.friends.length === 0) continue;
         const { changed, updated } = removeEmailFromFriendsArray(s.friends, target);
         if (changed) {
-            modifiedShares.push({
-                memory_id: s.memory_id,
-                previousFriends: JSON.parse(JSON.stringify(s.friends))
-            });
             await sharesCol.updateOne(
                 { memory_id: s.memory_id },
-                { $set: { friends: updated } },
-                opts
+                { $set: { friends: updated } }
             );
+            modifiedSharesCount++;
         }
     }
 
@@ -444,78 +432,23 @@ async function cleanup_user_data(userEmail, session = null) {
             { recipient_email: { $regex: regex } }
         ]
     };
-    const matchedCapsules = await capsulesCol.find(capsuleFilter, opts).toArray();
-    const deletedCapsules = matchedCapsules.map(c => {
-        const copy = { ...c };
-        delete copy._id;
-        return copy;
-    });
-
+    const matchedCapsules = await capsulesCol.find(capsuleFilter, {
+        projection: { _id: 0, media: 1 }
+    }).toArray();
     if (matchedCapsules.length > 0) {
-        await capsulesCol.deleteMany(capsuleFilter, opts);
+        await capsulesCol.deleteMany(capsuleFilter);
     }
 
     return {
-        deletedSharesCount: deletedShares.length,
-        modifiedSharesCount: modifiedShares.length,
-        deletedCapsulesCount: deletedCapsules.length,
-        deletedShares,
-        modifiedShares,
-        deletedCapsules
+        deletedSharesCount: matchedShares.length,
+        modifiedSharesCount,
+        deletedCapsulesCount: matchedCapsules.length,
+        deletedShares: matchedShares,
+        deletedCapsules: matchedCapsules
     };
 }
 
-/**
- * Compensating rollback helper for sharing & capsule cleanup.
- */
-async function restore_user_cleanup(snapshot) {
-    if (!snapshot || typeof snapshot !== 'object') return false;
-    const sharesCol = getSharedMemoriesCollection();
-    const capsulesCol = getTimeCapsulesCollection();
-
-    if (Array.isArray(snapshot.deletedShares)) {
-        for (const s of snapshot.deletedShares) {
-            if (!s || !s.memory_id) continue;
-            const copy = { ...s };
-            delete copy._id;
-            await sharesCol.updateOne(
-                { memory_id: copy.memory_id },
-                { $set: copy },
-                { upsert: true }
-            );
-        }
-    }
-
-    if (Array.isArray(snapshot.modifiedShares)) {
-        for (const item of snapshot.modifiedShares) {
-            if (!item || !item.memory_id) continue;
-            await sharesCol.updateOne(
-                { memory_id: item.memory_id },
-                { $set: { friends: item.previousFriends || [] } }
-            );
-        }
-    }
-
-    if (Array.isArray(snapshot.deletedCapsules)) {
-        for (const c of snapshot.deletedCapsules) {
-            if (!c || !c.id) continue;
-            const copy = { ...c };
-            delete copy._id;
-            await capsulesCol.updateOne(
-                { id: copy.id },
-                { $set: copy },
-                { upsert: true }
-            );
-        }
-    }
-
-    return true;
-}
-
-/**
- * Propagates a user's email change across shared memories and time capsules.
- */
-async function update_user_email(oldEmail, newEmail, session = null) {
+async function update_user_email(oldEmail, newEmail) {
     const oldNorm = normalizeEmail(oldEmail);
     const newNorm = normalizeEmail(newEmail);
     if (!oldNorm || !newNorm || oldNorm === newNorm) {
@@ -524,7 +457,6 @@ async function update_user_email(oldEmail, newEmail, session = null) {
 
     const sharesCol = getSharedMemoriesCollection();
     const capsulesCol = getTimeCapsulesCollection();
-    const opts = session ? { session } : {};
 
     const regex = new RegExp(`^${escapeRegex(oldNorm)}$`, 'i');
     const matchedShares = await sharesCol.find({
@@ -544,7 +476,7 @@ async function update_user_email(oldEmail, newEmail, session = null) {
             { 'friends.id': oldNorm },
             { 'friends.id': regex }
         ]
-    }, { projection: { _id: 0, memory_id: 1, from: 1, to: 1, original_owner: 1, friends: 1 }, ...opts }).toArray();
+    }, { projection: { _id: 0, memory_id: 1, from: 1, to: 1, original_owner: 1, friends: 1 } }).toArray();
     let updatedSharesCount = 0;
     for (const share of matchedShares) {
         const patch = {};
@@ -569,11 +501,7 @@ async function update_user_email(oldEmail, newEmail, session = null) {
             }
         }
         if (touched) {
-            await sharesCol.updateOne(
-                { memory_id: share.memory_id },
-                { $set: patch },
-                opts
-            );
+            await sharesCol.updateOne({ memory_id: share.memory_id }, { $set: patch });
             updatedSharesCount++;
         }
     }
@@ -585,7 +513,7 @@ async function update_user_email(oldEmail, newEmail, session = null) {
             { user_email: { $regex: regex } },
             { recipient_email: { $regex: regex } }
         ]
-    }, opts).toArray();
+    }).toArray();
 
     let updatedCapsulesCount = 0;
     for (const cap of capsulesMatches) {
@@ -593,7 +521,7 @@ async function update_user_email(oldEmail, newEmail, session = null) {
         if (normalizeEmail(cap.user_email) === oldNorm) patch.user_email = newNorm;
         if (normalizeEmail(cap.recipient_email) === oldNorm) patch.recipient_email = newNorm;
         if (Object.keys(patch).length > 0) {
-            await capsulesCol.updateOne({ id: cap.id }, { $set: patch }, opts);
+            await capsulesCol.updateOne({ id: cap.id }, { $set: patch });
             updatedCapsulesCount++;
         }
     }
@@ -603,22 +531,18 @@ async function update_user_email(oldEmail, newEmail, session = null) {
 
 module.exports = {
     isDbConnected,
-    // Shared Memories
     load_all_shared_memories,
     get_user_shared_memories,
     get_received_shared_memories,
     get_shared_memory_for_user,
     add_shared_memory,
     mark_shared_memory_seen,
-    // Time Capsules
     get_user_capsules,
     get_capsule_by_id,
     get_locked_capsules,
     add_capsule,
     unlock_capsule,
-    // Account Lifecycle Helpers
     cleanup_user_data,
-    restore_user_cleanup,
     update_user_email
 };
 

@@ -136,10 +136,6 @@ const sanitizeAndInjectIdentity = (req, res, next) => {
     delete req.headers['x-user-username'];
     delete req.headers['x-gateway-secret'];
     delete req.headers['x-internal-secret'];
-    delete req.headers['x-set-session-email'];
-    delete req.headers['x-set-session-username'];
-    delete req.headers['x-clear-session'];
-    delete req.headers['x-session-id'];
 
     if (req.method === 'OPTIONS') {
         return next();

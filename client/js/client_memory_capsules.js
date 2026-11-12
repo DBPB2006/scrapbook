@@ -217,14 +217,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             capsules.forEach(c => {
                 const isUnlocked = c.unlocked == 1;
                 const rDateStr = c.reveal_date || '';
-
-                const pad = (n) => n.toString().padStart(2, '0');
-                const localReveal = new Date(String(rDateStr).replace(' ', 'T') + 'Z');
-                const displayReveal = isNaN(localReveal.getTime()) ? rDateStr : `${localReveal.getFullYear()}-${pad(localReveal.getMonth()+1)}-${pad(localReveal.getDate())} ${pad(localReveal.getHours())}:${pad(localReveal.getMinutes())}:${pad(localReveal.getSeconds())}`;
+                const displayReveal = window.ScrapbookConfig.formatLocalDateTime(rDateStr);
 
                 const cDateStr = c.created_at || '';
-                const localCreated = new Date(String(cDateStr).replace(' ', 'T') + 'Z');
-                const displayCreated = isNaN(localCreated.getTime()) ? cDateStr : `${localCreated.getFullYear()}-${pad(localCreated.getMonth()+1)}-${pad(localCreated.getDate())} ${pad(localCreated.getHours())}:${pad(localCreated.getMinutes())}:${pad(localCreated.getSeconds())}`;
+                const displayCreated = window.ScrapbookConfig.formatLocalDateTime(cDateStr);
 
                 const link = document.createElement('a');
                 link.href = `/capsules/open_capsule.html?id=${encodeURIComponent(c.id)}`;
@@ -359,7 +355,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!revealDateStr) return;
                 
                 const now = new Date();
-                const reveal = new Date(revealDateStr.replace(' ', 'T') + 'Z');
+                const reveal = window.ScrapbookConfig.parseUtcDate(revealDateStr);
+                if (!reveal) return;
                 let diffMs = reveal - now;
 
                 if (diffMs <= 0) {

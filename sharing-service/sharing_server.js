@@ -223,23 +223,16 @@ app.post('/api/capsules', isAuthenticated, uploadCapsuleMedia, async (req, res) 
             return res.status(400).json({ error: 'Recipient, message, and reveal date are required.' });
         }
 
-        const media = (req.files || []).map(file => {
-            if (file.provider === 's3') {
-                return {
-                    type: file.mimeType,
-                    path: { provider: 's3', key: file.key, mimeType: file.mimeType, fileName: file.fileName, size: file.size },
-                    name: file.fileName
-                };
-            }
-            return {
-                type: file.mimetype,
-                path: 'uploads/' + file.filename,
-                name: file.originalname
-            };
-        });
+        const media = (req.files || [])
+            .filter(file => file && file.provider === 's3')
+            .map(file => ({
+                type: file.mimeType,
+                path: { provider: 's3', key: file.key, mimeType: file.mimeType, fileName: file.fileName, size: file.size },
+                name: file.fileName
+            }));
 
-        const isoReveal = String(reveal_date).replace(' ', 'T');
-        const parsedRevealDate = new Date(isoReveal.includes('Z') || isoReveal.includes('+') ? isoReveal : isoReveal + 'Z');
+        const isoReveal = String(reveal_date).trim().replace(' ', 'T');
+        const parsedRevealDate = new Date(/(Z|[+-]\d{2}:?\d{2})$/i.test(isoReveal) ? isoReveal : `${isoReveal}Z`);
         const normalizedRevealDate = !isNaN(parsedRevealDate.getTime())
             ? parsedRevealDate.toISOString().replace('T', ' ').substring(0, 19)
             : reveal_date;
@@ -267,16 +260,6 @@ app.post('/api/capsules', isAuthenticated, uploadCapsuleMedia, async (req, res) 
     }
 });
 
-app.post('/api/internal/capsules/refresh_heap', isInternalService, async (req, res) => {
-    try {
-        await rebuildCapsuleHeap();
-        res.json({ success: true, heapSize: capsuleSchedulerHeap.size() });
-    } catch (err) {
-        console.error('Internal refresh heap error:', err.message);
-        res.status(500).json({ error: 'Database service unavailable' });
-    }
-});
-
 app.post('/api/internal/sharing/cleanup_user', isInternalService, async (req, res) => {
     try {
         const email = normalizeEmail(req.body && req.body.email);
@@ -294,24 +277,10 @@ app.post('/api/internal/sharing/cleanup_user', isInternalService, async (req, re
             deletedSharesCount: result.deletedSharesCount,
             modifiedSharesCount: result.modifiedSharesCount,
             deletedCapsulesCount: result.deletedCapsulesCount,
-            deletedShares: result.deletedShares,
-            modifiedShares: result.modifiedShares,
-            deletedCapsules: result.deletedCapsules,
             s3Keys: [...new Set(s3Keys)]
         });
     } catch (err) {
         console.error('Internal sharing cleanup error:', err.message);
-        res.status(500).json({ error: 'Database service unavailable' });
-    }
-});
-
-app.post('/api/internal/sharing/restore_cleanup', isInternalService, async (req, res) => {
-    try {
-        await sharingStore.restore_user_cleanup(req.body || {});
-        await rebuildCapsuleHeap();
-        res.json({ success: true });
-    } catch (err) {
-        console.error('Internal sharing restore error:', err.message);
         res.status(500).json({ error: 'Database service unavailable' });
     }
 });
@@ -545,14 +514,10 @@ app.post('/api/shared_memories', isAuthenticated, uploadSharedAttachments, async
 
         if (Array.isArray(req.files)) {
             req.files.forEach(f => {
-                if (f.provider === 's3') {
+                if (f && f.provider === 's3') {
                     const attObj = { provider: 's3', key: f.key, mimeType: f.mimeType, fileName: f.fileName, size: f.size };
                     attachments.push(attObj);
                     copiedMedia.push({ url: attObj, type: f.mimeType, name: f.fileName });
-                } else {
-                    const localPath = 'uploads/' + f.filename;
-                    attachments.push(localPath);
-                    copiedMedia.push({ url: localPath, type: f.mimetype, name: f.originalname });
                 }
             });
         }

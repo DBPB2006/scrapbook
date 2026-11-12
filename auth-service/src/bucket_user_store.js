@@ -40,10 +40,6 @@ function get_bucket(email) {
     return /^[A-Z]$/.test(first) ? first : 'A';
 }
 
-/**
- * Loads all users structured into the 26 A-Z alphabetical buckets directly from MongoDB.
- * Preserves the exact bucket format { A: {}, B: {}, ... Z: {} } for internal APIs and callers.
- */
 async function load_users(options = {}) {
     const collection = getUsersCollection();
     try {
@@ -64,9 +60,6 @@ async function load_users(options = {}) {
     }
 }
 
-/**
- * Lists users with public directory projection only (excludes password hashes and private friend lists).
- */
 async function list_users_public() {
     const collection = getUsersCollection();
     try {
@@ -91,7 +84,6 @@ async function list_users_public() {
 
 /**
  * Targeted batch lookup by email utilizing the { bucket_id: 1, email: 1 } compound index.
- * Avoids full collection scans when callers only need specific user records.
  */
 async function find_users_by_emails(emails = [], options = {}) {
     if (!Array.isArray(emails) || emails.length === 0) return {};
@@ -99,9 +91,7 @@ async function find_users_by_emails(emails = [], options = {}) {
     if (uniqueNormalized.length === 0) return {};
 
     const collection = getUsersCollection();
-    const findOpts = {};
-    if (options.projection) findOpts.projection = options.projection;
-    if (options.session) findOpts.session = options.session;
+    const findOpts = options.projection ? { projection: options.projection } : {};
 
     try {
         const primaryFilter = {
@@ -117,7 +107,6 @@ async function find_users_by_emails(emails = [], options = {}) {
             if (em) map[em] = doc;
         }
 
-        // Targeted case-insensitive fallback ONLY for any requested emails missing from canonical match
         const missing = uniqueNormalized.filter(em => !map[em]);
         if (missing.length > 0) {
             const fallbackFilter = {
@@ -139,25 +128,18 @@ async function find_users_by_emails(emails = [], options = {}) {
     }
 }
 
-/**
- * Retrieves a user record by email using the mandatory A-Z bucket_id compound index.
- */
-async function get_user(email, session = null) {
+async function get_user(email) {
     const normalized = normalizeEmail(email);
     if (!normalized) return null;
     const bucket = get_bucket(normalized);
-    const opts = session ? { session } : {};
 
     const collection = getUsersCollection();
     try {
-        // Primary query: compound index lookup on { bucket_id: 1, email: 1 }
-        let user = await collection.findOne({ bucket_id: bucket, email: normalized }, opts);
+        let user = await collection.findOne({ bucket_id: bucket, email: normalized });
         if (!user) {
-            // Case-insensitive email match in case legacy record casing differs
-            const escaped = escapeRegex(normalized);
             user = await collection.findOne({
-                email: { $regex: new RegExp(`^${escaped}$`, 'i') }
-            }, opts);
+                email: { $regex: new RegExp(`^${escapeRegex(normalized)}$`, 'i') }
+            });
         }
         return user || null;
     } catch (err) {
@@ -166,10 +148,7 @@ async function get_user(email, session = null) {
     }
 }
 
-/**
- * Upserts a user record into MongoDB with the mandatory bucket_id field.
- */
-async function add_user(email, details, session = null) {
+async function add_user(email, details) {
     const normalized = normalizeEmail(email);
     if (!normalized) return false;
     const bucket = get_bucket(normalized);
@@ -183,11 +162,10 @@ async function add_user(email, details, session = null) {
 
     const collection = getUsersCollection();
     try {
-        const opts = session ? { upsert: true, session } : { upsert: true };
         await collection.updateOne(
             { email: normalized },
             { $set: userDoc },
-            opts
+            { upsert: true }
         );
         return true;
     } catch (err) {
@@ -196,21 +174,16 @@ async function add_user(email, details, session = null) {
     }
 }
 
-/**
- * Checks if a username already exists across all users.
- */
-async function username_exists(username, session = null) {
+async function username_exists(username) {
     if (!username || typeof username !== 'string') return false;
     const clean = username.trim();
     if (!clean) return false;
 
     const collection = getUsersCollection();
     try {
-        const escaped = escapeRegex(clean);
-        const opts = session ? { session } : {};
         const user = await collection.findOne({
-            username: { $regex: new RegExp(`^${escaped}$`, 'i') }
-        }, opts);
+            username: { $regex: new RegExp(`^${escapeRegex(clean)}$`, 'i') }
+        });
         return !!user;
     } catch (err) {
         console.error('Scrapbook Auth: MongoDB username_exists error:', err.message);
@@ -218,24 +191,20 @@ async function username_exists(username, session = null) {
     }
 }
 
-/**
- * Removes a user record by email.
- */
-async function remove_user(email, session = null) {
+async function remove_user(email) {
     const normalized = normalizeEmail(email);
     if (!normalized) return false;
     const bucket = get_bucket(normalized);
-    const opts = session ? { session } : {};
 
     const collection = getUsersCollection();
     try {
-        const res = await collection.deleteOne({ bucket_id: bucket, email: normalized }, opts);
+        const res = await collection.deleteOne({ bucket_id: bucket, email: normalized });
         if (res.deletedCount > 0) return true;
-        const fallbackRes = await collection.deleteOne({ email: normalized }, opts);
+        const fallbackRes = await collection.deleteOne({ email: normalized });
         if (fallbackRes.deletedCount > 0) return true;
         const regexRes = await collection.deleteOne({
             email: { $regex: new RegExp(`^${escapeRegex(normalized)}$`, 'i') }
-        }, opts);
+        });
         return regexRes.deletedCount > 0;
     } catch (err) {
         console.error('Scrapbook Auth: MongoDB remove_user error:', err.message);
@@ -243,22 +212,12 @@ async function remove_user(email, session = null) {
     }
 }
 
-/**
- * Removes references to a deleted user from all remaining users' friends arrays.
- * Returns snapshots for compensating rollback on partial failure.
- */
-async function remove_friend_references(targetEmail, session = null) {
+async function remove_friend_references(targetEmail) {
     const targetNorm = normalizeEmail(targetEmail);
-    if (!targetNorm) {
-        return { modifiedCount: 0, modifiedUsers: [], removedFriendS3Keys: [] };
-    }
+    if (!targetNorm) return { modifiedCount: 0 };
 
     const collection = getUsersCollection();
     const regex = new RegExp(`^${escapeRegex(targetNorm)}$`, 'i');
-    const opts = {
-        projection: { _id: 0, email: 1, friends: 1 },
-        ...(session ? { session } : {})
-    };
     const matchedUsers = await collection.find({
         $or: [
             { friends: targetNorm },
@@ -270,50 +229,35 @@ async function remove_friend_references(targetEmail, session = null) {
             { 'friends.id': targetNorm },
             { 'friends.id': regex }
         ]
-    }, opts).toArray();
-    const modifiedUsers = [];
+    }, { projection: { _id: 0, email: 1, friends: 1 } }).toArray();
 
+    let modifiedCount = 0;
     for (const doc of matchedUsers) {
-        const docEmail = normalizeEmail(doc.email);
-        if (docEmail === targetNorm) continue;
+        if (normalizeEmail(doc.email) === targetNorm) continue;
         if (!Array.isArray(doc.friends) || doc.friends.length === 0) continue;
 
         const { changed, updated: nextFriends } = removeEmailFromFriendsArray(doc.friends, targetNorm);
         if (changed) {
-            modifiedUsers.push({
-                email: doc.email,
-                previousFriends: JSON.parse(JSON.stringify(doc.friends))
-            });
             await collection.updateOne(
                 { email: doc.email },
-                { $set: { friends: nextFriends } },
-                opts
+                { $set: { friends: nextFriends } }
             );
+            modifiedCount += 1;
         }
     }
 
-    return {
-        modifiedCount: modifiedUsers.length,
-        modifiedUsers
-    };
+    return { modifiedCount };
 }
 
-/**
- * Replaces a user's email inside all users' friends arrays and deduplicates entries.
- */
-async function replace_friend_email_references(oldEmail, newEmail, session = null) {
+async function replace_friend_email_references(oldEmail, newEmail) {
     const oldNorm = normalizeEmail(oldEmail);
     const newNorm = normalizeEmail(newEmail);
     if (!oldNorm || !newNorm || oldNorm === newNorm) {
-        return { modifiedCount: 0, modifiedUsers: [] };
+        return { modifiedCount: 0 };
     }
 
     const collection = getUsersCollection();
     const regex = new RegExp(`^${escapeRegex(oldNorm)}$`, 'i');
-    const opts = {
-        projection: { _id: 0, email: 1, friends: 1 },
-        ...(session ? { session } : {})
-    };
     const matchedUsers = await collection.find({
         $or: [
             { friends: oldNorm },
@@ -325,53 +269,26 @@ async function replace_friend_email_references(oldEmail, newEmail, session = nul
             { 'friends.id': oldNorm },
             { 'friends.id': regex }
         ]
-    }, opts).toArray();
-    const modifiedUsers = [];
+    }, { projection: { _id: 0, email: 1, friends: 1 } }).toArray();
 
+    let modifiedCount = 0;
     for (const doc of matchedUsers) {
         if (!Array.isArray(doc.friends) || doc.friends.length === 0) continue;
 
         const { changed, updated: updatedFriends } = replaceEmailInFriendsArray(doc.friends, oldNorm, newNorm);
         if (changed) {
-            modifiedUsers.push({
-                email: doc.email,
-                previousFriends: JSON.parse(JSON.stringify(doc.friends))
-            });
             await collection.updateOne(
                 { email: doc.email },
-                { $set: { friends: updatedFriends } },
-                opts
+                { $set: { friends: updatedFriends } }
             );
+            modifiedCount += 1;
         }
     }
 
-    return {
-        modifiedCount: modifiedUsers.length,
-        modifiedUsers
-    };
+    return { modifiedCount };
 }
 
-/**
- * Compensating rollback helper: restores modified users' friends arrays.
- */
-async function restore_friend_references(modifiedUsers) {
-    if (!Array.isArray(modifiedUsers) || modifiedUsers.length === 0) return true;
-    const collection = getUsersCollection();
-    for (const entry of modifiedUsers) {
-        if (!entry || !entry.email) continue;
-        await collection.updateOne(
-            { email: entry.email },
-            { $set: { friends: entry.previousFriends || [] } }
-        );
-    }
-    return true;
-}
-
-/**
- * Updates a user's email and A-Z bucket_id in place cleanly without triggering unique username conflicts,
- * and propagates the email update across all friend references in the users collection.
- */
-async function update_user_email(oldEmail, newEmail, updatedDetails, session = null) {
+async function update_user_email(oldEmail, newEmail, updatedDetails) {
     const oldNorm = normalizeEmail(oldEmail);
     const newNorm = normalizeEmail(newEmail);
     if (!oldNorm || !newNorm) {
@@ -379,14 +296,10 @@ async function update_user_email(oldEmail, newEmail, updatedDetails, session = n
     }
 
     const collection = getUsersCollection();
-    const opts = session ? { session } : {};
-    const existing = await get_user(oldNorm, session);
+    const existing = await get_user(oldNorm);
     if (!existing) {
         throw new Error('Original user record not found');
     }
-
-    const previousUserSnapshot = { ...existing };
-    delete previousUserSnapshot._id;
 
     const nextBucket = get_bucket(newNorm);
     const cleanUpdate = {
@@ -398,46 +311,10 @@ async function update_user_email(oldEmail, newEmail, updatedDetails, session = n
 
     await collection.updateOne(
         { email: existing.email },
-        { $set: cleanUpdate },
-        opts
+        { $set: cleanUpdate }
     );
 
-    const refResult = await replace_friend_email_references(oldNorm, newNorm, session);
-    return {
-        previousUserSnapshot,
-        modifiedUsers: refResult.modifiedUsers
-    };
-}
-
-/**
- * Compensating rollback helper for failed email changes.
- */
-async function restore_user_email_update(oldEmail, newEmail, snapshot) {
-    const collection = getUsersCollection();
-    if (snapshot && snapshot.previousUserSnapshot) {
-        const oldNorm = normalizeEmail(oldEmail);
-        const newNorm = normalizeEmail(newEmail);
-        const restored = {
-            ...snapshot.previousUserSnapshot,
-            email: oldNorm,
-            bucket_id: get_bucket(oldNorm)
-        };
-        delete restored._id;
-        const res = await collection.updateOne(
-            { email: newNorm },
-            { $set: restored }
-        );
-        if (res.matchedCount === 0) {
-            await collection.updateOne(
-                { email: oldNorm },
-                { $set: restored },
-                { upsert: true }
-            );
-        }
-    }
-    if (snapshot && Array.isArray(snapshot.modifiedUsers)) {
-        await restore_friend_references(snapshot.modifiedUsers);
-    }
+    await replace_friend_email_references(oldNorm, newNorm);
     return true;
 }
 
@@ -452,8 +329,7 @@ module.exports = {
     username_exists,
     remove_user,
     remove_friend_references,
-    restore_friend_references,
+    replace_friend_email_references,
     update_user_email,
-    restore_user_email_update,
     isDbConnected
 };

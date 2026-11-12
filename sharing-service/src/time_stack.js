@@ -60,13 +60,19 @@ function getDaysInMonth(month, year) {
 function calculateTimeDifference(startDateTimeStr, endDateTimeStr) {
     if (!startDateTimeStr || !endDateTimeStr) return null;
 
-    // Normalize ISO strings to "YYYY-MM-DD HH:mm:ss"
+    // Normalize ISO/Date values consistently to UTC "YYYY-MM-DD HH:mm:ss"
     const normalize = (s) => {
         if (s instanceof Date) {
-            const pad = (n) => n.toString().padStart(2, '0');
-            return `${s.getFullYear()}-${pad(s.getMonth()+1)}-${pad(s.getDate())} ${pad(s.getHours())}:${pad(s.getMinutes())}:${pad(s.getSeconds())}`;
+            return s.toISOString().replace('T', ' ').substring(0, 19);
         }
-        return String(s).replace('T', ' ').replace('Z', '').split('.')[0];
+        const raw = String(s).trim();
+        const iso = raw.replace(' ', 'T');
+        const withTz = /(Z|[+-]\d{2}:?\d{2})$/i.test(iso) ? iso : `${iso}Z`;
+        const parsed = new Date(withTz);
+        if (!isNaN(parsed.getTime())) {
+            return parsed.toISOString().replace('T', ' ').substring(0, 19);
+        }
+        return raw.replace('T', ' ').replace(/Z$/i, '').split('.')[0];
     };
 
     const sStr = normalize(startDateTimeStr);
@@ -171,8 +177,8 @@ function isCapsuleUnlocked(unlockDateTimeStr) {
     if (unlockDateTimeStr instanceof Date) {
         target = unlockDateTimeStr;
     } else {
-        const iso = String(unlockDateTimeStr).replace(' ', 'T');
-        target = new Date(iso.includes('Z') || iso.includes('+') ? iso : iso + 'Z');
+        const iso = String(unlockDateTimeStr).trim().replace(' ', 'T');
+        target = new Date(/(Z|[+-]\d{2}:?\d{2})$/i.test(iso) ? iso : `${iso}Z`);
         if (isNaN(target.getTime())) {
             target = new Date(unlockDateTimeStr);
         }

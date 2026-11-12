@@ -14,7 +14,8 @@ const {
     createUploadMiddleware,
     handleUploadError,
     deleteS3Objects,
-    extractS3Keys
+    extractS3Keys,
+    filterUnreferencedS3Keys
 } = hasLocalShared ? require('./shared/s3_storage') : require('../shared/s3_storage');
 const metrics = hasLocalShared ? require('./shared/metrics') : require('../shared/metrics');
 const {
@@ -93,29 +94,27 @@ async function formatMemoryResponse(memory, includeRawMedia = false) {
 
 function mapUploadedMediaFiles(files) {
     if (!Array.isArray(files) || files.length === 0) return [];
-    return files.map(file => {
-        if (file.provider === 's3') {
-            return {
-                url: { provider: 's3', key: file.key, mimeType: file.mimeType, fileName: file.fileName, size: file.size },
-                type: file.mimeType,
-                name: file.fileName
-            };
-        }
-        return {
-            url: 'uploads/' + file.filename,
-            type: file.mimetype,
-            name: file.originalname
-        };
-    });
+    return files
+        .filter(file => file && file.provider === 's3')
+        .map(file => ({
+            url: { provider: 's3', key: file.key, mimeType: file.mimeType, fileName: file.fileName, size: file.size },
+            type: file.mimeType,
+            name: file.fileName
+        }));
 }
 
 function parseFriendsParam(rawFriends) {
     if (!rawFriends) return [];
-    try {
-        return typeof rawFriends === 'string' ? JSON.parse(rawFriends) : rawFriends;
-    } catch (_) {
-        return Array.isArray(rawFriends) ? rawFriends : [rawFriends];
+    let parsed = rawFriends;
+    if (typeof rawFriends === 'string') {
+        try {
+            parsed = JSON.parse(rawFriends);
+        } catch (_) {
+            return rawFriends.trim() ? [rawFriends.trim()] : [];
+        }
     }
+    if (Array.isArray(parsed)) return parsed;
+    return parsed ? [parsed] : [];
 }
 
 function getUploadedS3Keys(files) {
@@ -128,79 +127,6 @@ async function cleanupUploadedFiles(files) {
     if (keys.length > 0) {
         try { await deleteS3Objects(keys); } catch (_) {}
     }
-}
-
-async function filterUnreferencedS3Keys(candidateKeys) {
-    if (!Array.isArray(candidateKeys) || candidateKeys.length === 0) return [];
-    const uniqueCandidates = [...new Set(candidateKeys.filter(k => typeof k === 'string' && k.trim()))];
-    if (uniqueCandidates.length === 0) return [];
-
-    if (!mongodb || typeof mongodb.isConnected !== 'function' || !mongodb.isConnected()) {
-        console.warn('Memories Service: MongoDB disconnected; skipping S3 cleanup to avoid data loss.');
-        return [];
-    }
-
-    const stillReferenced = new Set();
-    const referenceQueries = [
-        {
-            colName: mongodb.COLLECTIONS.MEMORIES,
-            filter: {
-                $or: [
-                    { 'media.url.key': { $in: uniqueCandidates } },
-                    { 'media.path.key': { $in: uniqueCandidates } },
-                    { 'media.key': { $in: uniqueCandidates } },
-                    { 'image.key': { $in: uniqueCandidates } },
-                    { 'image.url.key': { $in: uniqueCandidates } }
-                ]
-            },
-            projection: { _id: 0, media: 1, image: 1 }
-        },
-        {
-            colName: mongodb.COLLECTIONS.SHARED_MEMORIES,
-            filter: {
-                $or: [
-                    { 'attachments.key': { $in: uniqueCandidates } },
-                    { 'attachments.url.key': { $in: uniqueCandidates } },
-                    { 'media.url.key': { $in: uniqueCandidates } },
-                    { 'media.path.key': { $in: uniqueCandidates } },
-                    { 'media.key': { $in: uniqueCandidates } },
-                    { 'image.key': { $in: uniqueCandidates } },
-                    { 'image.url.key': { $in: uniqueCandidates } }
-                ]
-            },
-            projection: { _id: 0, attachments: 1, media: 1, image: 1 }
-        },
-        {
-            colName: mongodb.COLLECTIONS.TIME_CAPSULES,
-            filter: {
-                $or: [
-                    { 'media.path.key': { $in: uniqueCandidates } },
-                    { 'media.url.key': { $in: uniqueCandidates } },
-                    { 'media.key': { $in: uniqueCandidates } }
-                ]
-            },
-            projection: { _id: 0, media: 1 }
-        }
-    ];
-
-    for (const { colName, filter, projection } of referenceQueries) {
-        try {
-            const col = mongodb.getCollection(colName);
-            if (!col || typeof col.find !== 'function') {
-                console.warn(`Memories Service: S3 reference check unavailable for ${colName}; skipping S3 cleanup to avoid data loss.`);
-                return [];
-            }
-            const docs = await col.find(filter, { projection }).toArray();
-            for (const doc of docs) {
-                extractS3Keys(doc, stillReferenced);
-            }
-        } catch (err) {
-            console.warn(`Memories Service: S3 reference check failed for ${colName}; skipping S3 cleanup to avoid data loss:`, err.message);
-            return [];
-        }
-    }
-
-    return uniqueCandidates.filter(k => !stillReferenced.has(k));
 }
 
 async function buildFriendUsersMap(ownerEmail, friends) {
@@ -300,7 +226,7 @@ app.get('/api/internal/memories', isInternalService, async (req, res) => {
             ? await memoryStore.get_user_memories(ownerParam)
             : await memoryStore.load_all_memories();
         const sorted = memoryStore.sortMemoriesChronologically(rawMemories, order);
-        const mapped = await Promise.all(sorted.map(m => formatMemoryResponse(m, true)));
+        const mapped = await Promise.all(sorted.map(m => formatMemoryResponse(m)));
         res.json(mapped);
     } catch (err) {
         console.error('Internal memories error:', err.message);
@@ -335,23 +261,10 @@ app.post('/api/internal/memories/cleanup_user', isInternalService, async (req, r
             success: true,
             deletedCount: result.deletedCount,
             modifiedFriendRefsCount: result.modifiedFriendRefsCount,
-            deletedMemories: result.deletedMemories,
-            modifiedMemories: result.modifiedMemories,
             s3Keys
         });
     } catch (err) {
         console.error('Internal memories cleanup error:', err.message);
-        res.status(500).json({ error: 'Database service unavailable' });
-    }
-});
-
-// POST /api/internal/memories/restore_cleanup - Compensating rollback for failed account deletion
-app.post('/api/internal/memories/restore_cleanup', isInternalService, async (req, res) => {
-    try {
-        await memoryStore.restore_user_cleanup(req.body || {});
-        res.json({ success: true });
-    } catch (err) {
-        console.error('Internal memories restore error:', err.message);
         res.status(500).json({ error: 'Database service unavailable' });
     }
 });
@@ -503,7 +416,7 @@ app.put('/api/memories/:id', isAuthenticated, uploadMemoryMedia, async (req, res
 
         if (replacedCandidateKeys.length > 0) {
             try {
-                const safeOldKeys = (await filterUnreferencedS3Keys(replacedCandidateKeys))
+                const safeOldKeys = (await filterUnreferencedS3Keys(mongodb, replacedCandidateKeys))
                     .filter(k => !uploadedKeys.includes(k));
                 if (safeOldKeys.length > 0) {
                     await deleteS3Objects(safeOldKeys);
@@ -554,7 +467,7 @@ app.delete('/api/memories/:id', isAuthenticated, async (req, res) => {
             const candidateKeys = extractS3Keys(existing.media);
             if (candidateKeys.length > 0) {
                 try {
-                    const safeKeys = await filterUnreferencedS3Keys(candidateKeys);
+                    const safeKeys = await filterUnreferencedS3Keys(mongodb, candidateKeys);
                     if (safeKeys.length > 0) {
                         await deleteS3Objects(safeKeys);
                     }
@@ -597,4 +510,4 @@ if (require.main === module) {
     startServer();
 }
 
-module.exports = { app, startServer, memoryStore, filterUnreferencedS3Keys };
+module.exports = { app, startServer, memoryStore };

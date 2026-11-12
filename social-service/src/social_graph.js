@@ -141,10 +141,13 @@ class SocialGraph {
             const u = registeredUsers[email];
             if (Array.isArray(u.friends)) {
                 for (const friend of u.friends) {
-                    const fEmail = this.normalizeEmail(friend.email || friend.id || friend.friend_id);
+                    if (!friend) continue;
+                    const fEmail = typeof friend === 'string'
+                        ? this.normalizeEmail(friend)
+                        : this.normalizeEmail(friend.email || friend.id || friend.friend_id);
                     if (fEmail) {
                         this.addVertex(fEmail, {
-                            name: friend.name || fEmail,
+                            name: (typeof friend === 'object' && friend.name) || fEmail,
                             registered: !!registeredUsers[fEmail]
                         });
                         this.addEdge(email, fEmail);

@@ -6,6 +6,7 @@ node_modules/
 # Environment variables & secrets
 .env
 .env.*
+.env.jenkins
 !.env.example
 !.env.*.example
 *.pem

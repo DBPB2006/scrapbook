@@ -109,40 +109,133 @@ export MONGODB_DATABASE="scrapbook"
 bash scripts/init-mongodb.sh
 ```
 
-### Step 3: Create Kubernetes Secrets Once on K3s (via AWS SSM)
-Connect to the `scrapbook-k3s` EC2 instance via SSM, create namespace and secrets (never committed to Git), and copy `/etc/rancher/k3s/k3s.yaml` (updating `127.0.0.1` to `k3s_private_ip`) to Jenkins credential `k8s-kubeconfig`:
-```bash
-kubectl apply -f deployment/namespace.yaml
+### Step 3: Create the `deployment-env` Secrets File & Restricted Jenkins Kubeconfig
 
-kubectl create secret generic app-secrets \
-  --namespace=scrapbook \
-  --from-literal=JWT_SECRET="<your-production-jwt-secret>" \
-  --from-literal=INTERNAL_SERVICE_SECRET="<your-internal-service-secret>" \
-  --from-literal=GATEWAY_SHARED_SECRET="<your-gateway-shared-secret>" \
-  --from-literal=MONGODB_URI="mongodb://<app_user>:<url_encoded_app_password>@<mongodb-ec2-private-ip>:27017/scrapbook?authSource=scrapbook"
+Do **not** commit real secrets to Git, do **not** embed a kubeconfig inside `.env.jenkins`, and do **not** leave K3s's full cluster-admin `/etc/rancher/k3s/k3s.yaml` as Jenkins's permanent credential.
 
-kubectl create secret generic grafana-secret \
-  --namespace=scrapbook \
-  --from-literal=admin-password="<your-grafana-admin-password>"
-```
+1. **Prepare `.env.jenkins` locally** from [`.env.jenkins.example`](./.env.jenkins.example) (already gitignored via `.gitignore`):
+   ```bash
+   cp .env.jenkins.example .env.jenkins
+   chmod 600 .env.jenkins
+   ```
+   Populate real values for:
+   - `JWT_SECRET`, `INTERNAL_SERVICE_SECRET`, `GATEWAY_SHARED_SECRET`
+   - `MONGODB_URI` (`mongodb://scrapbook_app:<URL_ENCODED_PASSWORD>@10.0.21.241:27017/scrapbook?authSource=scrapbook` — reuse the existing `scrapbook_app` credentials initialized in Step 2; URL-encode special characters)
+   - `GRAFANA_ADMIN_PASSWORD`
+   - `LOCATIONIQ_API_KEY` (HTTP-referrer-restricted in LocationIQ)
+
+2. **Create a least-privilege `jenkins-deployer` ServiceAccount kubeconfig on `scrapbook-k3s` (via AWS SSM)** instead of permanently storing the cluster-admin `k3s.yaml` in Jenkins:
+   ```bash
+   kubectl apply -f deployment/namespace.yaml
+
+   cat <<'EOF' | kubectl apply -f -
+   apiVersion: v1
+   kind: ServiceAccount
+   metadata:
+     name: jenkins-deployer
+     namespace: scrapbook
+   ---
+   apiVersion: rbac.authorization.k8s.io/v1
+   kind: ClusterRole
+   metadata:
+     name: jenkins-scrapbook-namespace
+   rules:
+     - apiGroups: [""]
+       resources: ["namespaces"]
+       verbs: ["create"]
+     - apiGroups: [""]
+       resources: ["namespaces"]
+       resourceNames: ["scrapbook"]
+       verbs: ["get", "patch", "update"]
+   ---
+   apiVersion: rbac.authorization.k8s.io/v1
+   kind: ClusterRoleBinding
+   metadata:
+     name: jenkins-scrapbook-namespace-binding
+   roleRef:
+     apiGroup: rbac.authorization.k8s.io
+     kind: ClusterRole
+     name: jenkins-scrapbook-namespace
+   subjects:
+     - kind: ServiceAccount
+       name: jenkins-deployer
+       namespace: scrapbook
+   ---
+   apiVersion: rbac.authorization.k8s.io/v1
+   kind: Role
+   metadata:
+     name: jenkins-scrapbook-deployer
+     namespace: scrapbook
+   rules:
+     - apiGroups: ["", "apps", "autoscaling"]
+       resources: ["configmaps", "secrets", "services", "deployments", "replicasets", "pods", "horizontalpodautoscalers"]
+       verbs: ["get", "list", "watch", "create", "update", "patch"]
+   ---
+   apiVersion: rbac.authorization.k8s.io/v1
+   kind: RoleBinding
+   metadata:
+     name: jenkins-scrapbook-deployer-binding
+   roleRef:
+     apiGroup: rbac.authorization.k8s.io
+     kind: Role
+     name: jenkins-scrapbook-deployer
+   subjects:
+     - kind: ServiceAccount
+       name: jenkins-deployer
+       namespace: scrapbook
+   EOF
+
+   # Generate a dedicated ServiceAccount kubeconfig pointing to k3s_private_ip:6443
+   K3S_CA_B64="$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')"
+   SA_TOKEN="$(kubectl create token jenkins-deployer -n scrapbook --duration=8760h)"
+   cat > /tmp/jenkins-k3s.kubeconfig <<EOF
+   apiVersion: v1
+   kind: Config
+   clusters:
+     - name: scrapbook-k3s
+       cluster:
+         certificate-authority-data: ${K3S_CA_B64}
+         server: https://<k3s_private_ip>:6443
+   contexts:
+     - name: jenkins-deployer@scrapbook-k3s
+       context:
+         cluster: scrapbook-k3s
+         namespace: scrapbook
+         user: jenkins-deployer
+   current-context: jenkins-deployer@scrapbook-k3s
+   users:
+     - name: jenkins-deployer
+       user:
+         token: ${SA_TOKEN}
+   EOF
+   chmod 600 /tmp/jenkins-k3s.kubeconfig
+   ```
+   Copy `/tmp/jenkins-k3s.kubeconfig` to upload into Jenkins as `k8s-kubeconfig`, then remove the temporary file (`rm -f /tmp/jenkins-k3s.kubeconfig`). When `scrapbook-pipeline` runs, Jenkins automatically creates/updates the `scrapbook` namespace, `app-secrets`, and `grafana-secret` from `deployment-env`.
 
 ### Step 4: Access Jenkins & Configure the Pipeline
-Jenkins runs on `scrapbook-jenkins` and binds strictly to `127.0.0.1:8080`. Forward port `8080` over AWS SSM to access the Jenkins UI, create the `scrapbook-pipeline` Pipeline job pointing to `Jenkinsfile`, install standard Pipeline/Credentials plugins, add the `k8s-kubeconfig` (`Secret file`) credential, and configure global environment variables (`MEDIA_S3_BUCKET`, `FRONTEND_S3_BUCKET`, `ALB_API_URL`, `LOCATIONIQ_API_KEY`).
+Jenkins runs on `scrapbook-jenkins` and binds strictly to `127.0.0.1:8080`. Forward port `8080` over AWS SSM (`aws ssm start-session --target <jenkins_instance_id> --region ap-south-1 --document-name AWS-StartPortForwardingSession --parameters '{"portNumber":["8080"],"localPortNumber":["8080"]}'`) to access the Jenkins UI, install standard **Git**, **Pipeline**, and **Credentials Binding** plugins, and configure:
+- **Secret file credential `deployment-env`**: upload your local `.env.jenkins` file (delete any plaintext copy from shared folders after upload).
+- **Secret file credential `k8s-kubeconfig`**: upload the restricted `jenkins-deployer` kubeconfig (keep separate from `deployment-env`).
+- **Global environment variables** (`Manage Jenkins -> System -> Global properties`):
+  - `MEDIA_S3_BUCKET` (from Terraform output `media_bucket_name`)
+  - `FRONTEND_S3_BUCKET` (from Terraform output `frontend_bucket_name`)
+  - `ALB_API_URL` (`http://<alb_dns_name>` from Terraform output `alb_dns_name`)
+- **Pipeline job `scrapbook-pipeline`**: Pipeline script from SCM (`Git`), pointing to `main` and `Jenkinsfile`.
 
 ---
 
 ## 4. Jenkins Application Deployment Pipeline ([`Jenkinsfile`](./Jenkinsfile))
 
-Automates testing, image builds, security checks, Kubernetes deployment, and frontend sync:
-1. **Checkout**: Pulls source from GitHub, validates required Jenkins environment variables (`MEDIA_S3_BUCKET`, `FRONTEND_S3_BUCKET`, `ALB_API_URL`, `LOCATIONIQ_API_KEY`; optional `FRONTEND_ORIGIN`), and generates a unique immutable ECR image tag (`<short-sha>-<BUILD_NUMBER>-<UTC-timestamp>`).
+Automates testing, image builds, security checks, Kubernetes secret/manifest deployment, and frontend sync:
+1. **Checkout**: Pulls source from GitHub, validates required Jenkins environment variables (`MEDIA_S3_BUCKET`, `FRONTEND_S3_BUCKET`, `ALB_API_URL`; optional `FRONTEND_ORIGIN`) plus all 6 keys inside `deployment-env`, and generates a unique immutable ECR image tag (`<short-sha>-<BUILD_NUMBER>-<UTC-timestamp>`).
 2. **Dependency Scan**: Runs `npm audit --audit-level=low` across all 5 microservices.
 3. **Static Code Analysis and SAST**: Runs `npm run lint` (`node --check`) on all 5 services and Semgrep (`p/javascript`, `p/nodejs`).
 4. **Build Images**: Builds all 5 Docker images using `npm ci --omit=dev`.
 5. **Trivy Scan**: Scans each built image for `CRITICAL` vulnerabilities (`--exit-code 1`).
 6. **Push to ECR**: Logs in with the Jenkins EC2 IAM role and pushes all 5 images.
-7. **Deploy Kubernetes Manifests**: Substitutes placeholders (`<AWS_ACCOUNT_ID>`, `<IMAGE_TAG>`, `<MEDIA_S3_BUCKET>`, `<FRONTEND_S3_WEBSITE_ORIGIN>`), verifies no unreplaced placeholders remain, and applies namespace, ConfigMaps, all 5 microservice Deployments & Services, all 3 HPA manifests (`auth`, `memories`, `social`), and Prometheus/Grafana monitoring manifests.
-8. **Verify Rollouts**: Waits for `kubectl rollout status` on all 5 microservice Deployments.
-9. **Deploy Frontend to S3**: Injects `ALB_API_URL` and `LOCATIONIQ_API_KEY` into `client/js/config.js`, syntax-checks it, and runs `aws s3 sync ... --delete` to `FRONTEND_S3_BUCKET`.
+7. **Deploy Kubernetes Manifests**: Substitutes placeholders (`<AWS_ACCOUNT_ID>`, `<IMAGE_TAG>`, `<MEDIA_S3_BUCKET>`, `<FRONTEND_S3_WEBSITE_ORIGIN>`), verifies no unreplaced placeholders remain, applies `namespace.yaml`, creates/updates `app-secrets` and `grafana-secret` via `kubectl` using `deployment-env`, and applies ConfigMaps, all 5 microservice Deployments & Services, all 3 HPA manifests, and Prometheus/Grafana monitoring manifests.
+8. **Verify Rollouts**: Waits for `kubectl rollout status` on all 5 microservice Deployments plus Prometheus and Grafana.
+9. **Deploy Frontend to S3**: Injects `ALB_API_URL` and `LOCATIONIQ_API_KEY` (from `deployment-env`) into `client/js/config.js`, syntax-checks it, and runs `aws s3 sync ... --delete` to `FRONTEND_S3_BUCKET`.
 
 ---
 

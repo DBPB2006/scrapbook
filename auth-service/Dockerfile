@@ -2,10 +2,10 @@ FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
-ENV NODE_ENV=production
+RUN npm i -g npm@10.9.9
 
 COPY auth-service/package*.json ./
-RUN npm ci --omit=dev
+RUN npm i
 
 COPY auth-service/ ./
 COPY shared/ ./shared/

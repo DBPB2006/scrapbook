@@ -230,7 +230,7 @@ Automates testing, image builds, security checks, Kubernetes secret/manifest dep
 1. **Checkout**: Pulls source from GitHub, validates required Jenkins environment variables (`MEDIA_S3_BUCKET`, `FRONTEND_S3_BUCKET`, `ALB_API_URL`; optional `FRONTEND_ORIGIN`) plus all 6 keys inside `deployment-env`, and generates a unique immutable ECR image tag (`<short-sha>-<BUILD_NUMBER>-<UTC-timestamp>`).
 2. **Dependency Scan**: Runs `npm audit --audit-level=low` across all 5 microservices.
 3. **Static Code Analysis and SAST**: Runs `npm run lint` (`node --check`) on all 5 services and Semgrep (`p/javascript`, `p/nodejs`).
-4. **Build Images**: Builds all 5 Docker images using `npm ci --omit=dev`.
+4. **Build Images**: Builds all 5 Docker images (`npm@10.9.9` and `npm i`).
 5. **Trivy Scan**: Scans each built image for `CRITICAL` vulnerabilities (`--exit-code 1`).
 6. **Push to ECR**: Logs in with the Jenkins EC2 IAM role and pushes all 5 images.
 7. **Deploy Kubernetes Manifests**: Substitutes placeholders (`<AWS_ACCOUNT_ID>`, `<IMAGE_TAG>`, `<MEDIA_S3_BUCKET>`, `<FRONTEND_S3_WEBSITE_ORIGIN>`), verifies no unreplaced placeholders remain, applies `namespace.yaml`, creates/updates `app-secrets` and `grafana-secret` via `kubectl` using `deployment-env`, and applies ConfigMaps, all 5 microservice Deployments & Services, all 3 HPA manifests, and Prometheus/Grafana monitoring manifests.

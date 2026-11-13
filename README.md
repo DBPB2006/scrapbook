@@ -13,7 +13,7 @@ Scrapbook is a cloud-native social memory platform that enables users to create,
 
 | Service / Interface | Access Method | URL / Command | Credentials / Notes |
 | :--- | :--- | :--- | :--- |
-| **Frontend Web App** | Direct Browser (Public) | `http://<frontend_website_endpoint>` | Open in any browser. Served statically from S3. |
+| **Frontend Web App** | Direct Browser (Public) | [`http://scrapbook-frontend-883270655099.s3-website.ap-south-1.amazonaws.com`](http://scrapbook-frontend-883270655099.s3-website.ap-south-1.amazonaws.com) | Open in any browser. Served statically from S3. |
 | **Public API (ALB)** | HTTP Port 80 (Public) | `http://<alb_dns_name>` | Internet-facing ALB forwarding to API Gateway (`:30090`). |
 | **Grafana Monitoring** | AWS SSM Port-Forward | `http://localhost:3000` | User: `admin` \| Password: from `grafana-secret` |
 | **Prometheus UI** | AWS SSM Port-Forward | `http://localhost:9090` | View scrape targets at `http://localhost:9090/targets` |
@@ -84,9 +84,8 @@ terraform -chdir=terraform output -raw frontend_website_endpoint
 ```
 Open the output URL in any web browser:
 ```
-http://<frontend_website_endpoint>
+http://scrapbook-frontend-883270655099.s3-website.ap-south-1.amazonaws.com
 ```
-*(Example: `http://scrapbook-frontend-123456789012.s3-website.ap-south-1.amazonaws.com`)*
 
 ### How Frontend Requests Reach the Backend
 1. **Dynamic Config**: During CI/CD deployment, Jenkins substitutes `<ALB_API_URL>` (from Terraform output `alb_dns_name`) and `<LOCATIONIQ_API_KEY>` into [`client/js/config.js`](./client/js/config.js) before syncing `client/` to the frontend S3 bucket.

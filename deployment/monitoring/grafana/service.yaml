@@ -8,12 +8,13 @@ metadata:
     app.kubernetes.io/name: grafana
     app.kubernetes.io/part-of: scrapbook
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: grafana
   ports:
   - name: http
     port: 3000
     targetPort: 3000
+    nodePort: 30300
     protocol: TCP
 

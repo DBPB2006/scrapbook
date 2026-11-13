@@ -8,12 +8,13 @@ metadata:
     app.kubernetes.io/name: prometheus
     app.kubernetes.io/part-of: scrapbook
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: prometheus
   ports:
   - name: http
     port: 9090
     targetPort: 9090
+    nodePort: 30091
     protocol: TCP
 

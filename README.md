@@ -23,7 +23,7 @@ You can access the website here:
 | **Frontend Web App** | Direct Browser (Public) | [**`http://scrapbook-frontend-883270655099.s3-website.ap-south-1.amazonaws.com`**](http://scrapbook-frontend-883270655099.s3-website.ap-south-1.amazonaws.com) | Open directly in any browser. Served statically from S3. |
 | **Public API (ALB)** | HTTP Port 80 (Public) | `http://<alb_dns_name>` | Internet-facing ALB forwarding to API Gateway (`:30090`). |
 | **Grafana Monitoring** | AWS SSM Port-Forward | `http://localhost:3000` | User: `admin` \| Password: from `grafana-secret` |
-| **Prometheus UI** | AWS SSM Port-Forward | `http://localhost:9091` (or `:9090`) | View scrape targets at `http://localhost:9091/targets` |
+| **Prometheus UI** | AWS SSM Port-Forward | `http://localhost:9090` | View scrape targets at `http://localhost:9090/targets` |
 | **Jenkins CI/CD** | AWS SSM Port-Forward | `http://localhost:8080` | Initial pass from `/var/lib/jenkins/secrets/initialAdminPassword` |
 | **K3s Node Shell** | AWS SSM Session | `aws ssm start-session --target <k3s_instance_id>` | Single-node Kubernetes host in private subnet. |
 | **Database Shell** | AWS SSM Session | `aws ssm start-session --target <mongodb_instance_id>` | MongoDB 8.0 server on private EC2. |
@@ -171,50 +171,39 @@ terraform -chdir=terraform output -raw mongodb_instance_id
 
 ## 4. Accessing Prometheus & Grafana Monitoring
 
-Prometheus and Grafana run as internal cluster services in the `scrapbook` namespace. Access them via a two-step port-forward:
+Prometheus and Grafana are exposed via K3s NodePorts (`30091` for Prometheus, `30300` for Grafana). You can forward them directly from your local terminal with a single AWS SSM command (no manual `kubectl port-forward` on the EC2 required!):
+
+### Accessing Prometheus (Port 9091)
+
+Run from your **local Mac/PC terminal**:
+```bash
+aws ssm start-session \
+  --target <k3s_instance_id> \
+  --region ap-south-1 \
+  --document-name AWS-StartPortForwardingSession \
+  --parameters '{"portNumber":["30091"],"localPortNumber":["9091"]}'
+```
+Open in your browser:
+* Scrape target health: **[http://localhost:9091/targets](http://localhost:9091/targets)**
+* Active condition alert rules: **[http://localhost:9091/alerts](http://localhost:9091/alerts)**
+
+---
 
 ### Accessing Grafana (Port 3000)
 
-1. **Terminal 1 (EC2 Shell via SSM)**:
-   ```bash
-   aws ssm start-session --target <k3s_instance_id> --region ap-south-1
-   ```
-   Inside the instance shell, run:
-   ```bash
-   sudo kubectl port-forward -n scrapbook svc/grafana-service 3000:3000 --address 0.0.0.0
-   ```
-2. **Terminal 2 (Your Local Mac/PC)**:
-   ```bash
-   aws ssm start-session \
-     --target <k3s_instance_id> \
-     --region ap-south-1 \
-     --document-name AWS-StartPortForwardingSession \
-     --parameters '{"portNumber":["3000"],"localPortNumber":["3000"]}'
-   ```
-3. Open **[http://localhost:3000](http://localhost:3000)** in your browser.
-   * **User**: `admin`
-   * **Password**: Get the secret value via `sudo kubectl get secret -n scrapbook grafana-secret -o jsonpath="{.data.admin-password}" | base64 --decode && echo`
-   * **Dashboard**: Navigate to **Dashboards > Scrapbook Overview**.
-
-### Accessing Prometheus (Port 9090)
-
-1. **Terminal 1 (EC2 Shell via SSM)**:
-   ```bash
-   sudo kubectl port-forward -n scrapbook svc/prometheus-service 9090:9090 --address 0.0.0.0
-   ```
-2. **Terminal 2 (Your Local Mac/PC)**:
-   ```bash
-   aws ssm start-session \
-     --target <k3s_instance_id> \
-     --region ap-south-1 \
-     --document-name AWS-StartPortForwardingSession \
-     --parameters '{"portNumber":["9090"],"localPortNumber":["9091"]}'
-   ```
-   *(Forwarding to local port `9091` avoids conflicts with any local process already using port `9090`)*
-
-3. Open **[http://localhost:9091](http://localhost:9091)** in your browser.
-   * Scrape target health: **[http://localhost:9091/targets](http://localhost:9091/targets)**
-   * Active condition alert rules: **[http://localhost:9091/alerts](http://localhost:9091/alerts)**
+Run from your **local Mac/PC terminal**:
+```bash
+aws ssm start-session \
+  --target <k3s_instance_id> \
+  --region ap-south-1 \
+  --document-name AWS-StartPortForwardingSession \
+  --parameters '{"portNumber":["30300"],"localPortNumber":["3000"]}'
+```
+Open in your browser:
+* URL: **[http://localhost:3000](http://localhost:3000)**
+* **User**: `admin`
+* **Password**: From `grafana-secret` via `sudo kubectl get secret -n scrapbook grafana-secret -o jsonpath="{.data.admin-password}" | base64 --decode && echo`
+* **Dashboard**: Navigate to **Dashboards > Scrapbook Overview**.
 
 ---
 

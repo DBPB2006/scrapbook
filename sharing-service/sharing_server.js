@@ -76,7 +76,7 @@ async function cleanupUploadedFiles(files) {
         ? files.filter(f => f && f.provider === 's3' && f.key).map(f => f.key)
         : [];
     if (keys.length > 0) {
-        try { await deleteS3Objects(keys); } catch (_) {}
+        try { await deleteS3Objects(keys); } catch (_) { }
     }
 }
 

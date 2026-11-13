@@ -2,8 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
-COPY memories-service/package*.json ./
-RUN npm ci --omit=dev
+COPY memories-service/package.json ./
+RUN npm install
 
 COPY memories-service/ ./
 COPY shared/ ./shared/

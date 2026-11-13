@@ -24,16 +24,85 @@ data:
       "uid": "scrapbook-overview",
       "title": "Scrapbook Overview",
       "schemaVersion": 39,
-      "version": 1,
+      "version": 2,
       "refresh": "15s",
       "time": { "from": "now-1h", "to": "now" },
       "panels": [
         {
           "id": 1,
+          "type": "stat",
+          "title": "Microservice Health Status",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 18, "x": 0, "y": 0 },
+          "options": {
+            "reduceOptions": { "values": false, "calcs": ["lastNotNull"] },
+            "orientation": "horizontal",
+            "textMode": "auto",
+            "colorMode": "background"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": { "text": "DOWN", "color": "red" },
+                    "1": { "text": "HEALTHY", "color": "green" }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": 0, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              }
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "up{job=~\"auth-service|memories-service|social-service|sharing-service|gateway-service\"}",
+              "legendFormat": "{{job}}"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Active Firing Alarms",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+          "options": {
+            "reduceOptions": { "values": false, "calcs": ["lastNotNull"] },
+            "colorMode": "background"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": 0, "color": "green" },
+                  { "value": 1, "color": "red" }
+                ]
+              }
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
+              "legendFormat": "Firing Alarms"
+            }
+          ]
+        },
+        {
+          "id": 3,
           "type": "timeseries",
           "title": "Active Service Pods (HPA Visibility)",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "gridPos": { "h": 7, "w": 12, "x": 0, "y": 4 },
           "targets": [
             {
               "refId": "A",
@@ -43,11 +112,11 @@ data:
           ]
         },
         {
-          "id": 2,
+          "id": 4,
           "type": "timeseries",
           "title": "Service CPU Utilization (%)",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "gridPos": { "h": 7, "w": 12, "x": 12, "y": 4 },
           "targets": [
             {
               "refId": "A",
@@ -57,11 +126,49 @@ data:
           ]
         },
         {
-          "id": 3,
+          "id": 5,
+          "type": "timeseries",
+          "title": "P95 Request Latency (ms)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 7, "w": 12, "x": 0, "y": 11 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.95, sum by (le, job) (rate(http_request_duration_seconds_bucket[1m]))) * 1000",
+              "legendFormat": "{{job}} (p95)"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "Service Memory Utilization (MB)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 7, "w": 12, "x": 12, "y": 11 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "decmbytes"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (job) (process_resident_memory_bytes{job=~\"auth-service|memories-service|social-service|sharing-service|gateway-service\"}) / (1024 * 1024)",
+              "legendFormat": "{{job}}"
+            }
+          ]
+        },
+        {
+          "id": 7,
           "type": "timeseries",
           "title": "HTTP Request Rate (req/s)",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "gridPos": { "h": 7, "w": 12, "x": 0, "y": 18 },
           "targets": [
             {
               "refId": "A",
@@ -71,16 +178,64 @@ data:
           ]
         },
         {
-          "id": 4,
+          "id": 8,
           "type": "timeseries",
           "title": "HTTP Error Rate (4xx/5xx req/s)",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "gridPos": { "h": 7, "w": 12, "x": 12, "y": 18 },
           "targets": [
             {
               "refId": "A",
               "expr": "sum by (job) (rate(http_errors_total[1m]))",
               "legendFormat": "{{job}}"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "type": "timeseries",
+          "title": "Application Activity (Memories & Registrations / s)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 7, "w": 12, "x": 0, "y": 25 },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum(rate(memories_created_total[2m]))",
+              "legendFormat": "Memories Created/s"
+            },
+            {
+              "refId": "B",
+              "expr": "sum(rate(memories_shared_total[2m]))",
+              "legendFormat": "Memories Shared/s"
+            },
+            {
+              "refId": "C",
+              "expr": "sum(rate(user_registrations_total[2m]))",
+              "legendFormat": "User Registrations/s"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "type": "timeseries",
+          "title": "Authentication & Gateway Throttling Rate (req/s)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 7, "w": 12, "x": 12, "y": 25 },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum(rate(successful_logins_total[2m]))",
+              "legendFormat": "Successful Logins/s"
+            },
+            {
+              "refId": "B",
+              "expr": "sum(rate(failed_logins_total[2m]))",
+              "legendFormat": "Failed Logins/s"
+            },
+            {
+              "refId": "C",
+              "expr": "sum(rate(http_requests_total{code=\"429\"}[2m]))",
+              "legendFormat": "Rate Limited (429)/s"
             }
           ]
         }

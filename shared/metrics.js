@@ -54,7 +54,7 @@ const metricsEndpoint = async (req, res) => {
     res.set('Content-Type', promClient.register.contentType);
     res.end(await promClient.register.metrics());
   } catch (ex) {
-    res.status(500).end(ex);
+    res.status(500).end(ex && ex.message ? ex.message : String(ex));
   }
 };
 

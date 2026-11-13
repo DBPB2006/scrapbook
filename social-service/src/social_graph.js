@@ -1,7 +1,7 @@
 const { SocialQueue } = require('./social_queue');
 
 /**
- * Undirected Social Graph represented using an Adjacency List (Synopsis §6.2).
+ * Undirected Social Graph represented using an Adjacency List.
  * Space Complexity: O(V + E)
  * Edge Insertion / Removal: O(1)
  * Neighbor Lookup: O(1)
@@ -191,7 +191,7 @@ class SocialGraph {
     }
 
     /**
-     * Bounded Breadth-First Search (BFS) for friend recommendations (Synopsis §6.2).
+     * Bounded Breadth-First Search (BFS) for friend recommendations.
      * Explores graph level by level up to maxDepth (level 2: friends-of-friends).
      * Excludes self, direct friends, and duplicate candidates.
      * Time Complexity: O(V + E) over visited subgraph

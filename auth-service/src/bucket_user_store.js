@@ -30,7 +30,7 @@ function initializeBuckets() {
 }
 
 /**
- * Custom A-Z Alphabetical Bucketing Algorithm (Synopsis §6.1 DSA)
+ * Custom A-Z Alphabetical Bucketing Algorithm
  * Computes bucket identifier from the initial character of the normalized email.
  */
 function get_bucket(email) {

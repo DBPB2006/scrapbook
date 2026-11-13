@@ -131,7 +131,7 @@ async function connect(uri = null, databaseName = null, customOptions = {}) {
 
             return { client, db };
         } catch (error) {
-            try { await client.close(true); } catch (_) {}
+            try { await client.close(true); } catch (_) { }
             if (clientInstance === client || clientInstance === null) {
                 connectionPromise = null;
                 clientInstance = null;
@@ -262,7 +262,7 @@ async function ensureIndex(col, colName, spec) {
         return await col.createIndex(spec.keys, spec.options);
     } catch (err) {
         if (err && (err.code === 85 || err.code === 86)) {
-            try { await col.dropIndex(spec.options.name); } catch (_) {}
+            try { await col.dropIndex(spec.options.name); } catch (_) { }
             return col.createIndex(spec.keys, spec.options);
         }
         if (err && err.code === 11000 && colName === COLLECTIONS.FRIEND_REQUESTS) {

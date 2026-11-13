@@ -229,7 +229,7 @@ app.post('/api/signup', uploadSignupProfilePic, async (req, res) => {
             return res.status(400).json({ error: 'This username is already taken.' });
         }
 
-        const hashedPassword = bcrypt.hashSync(password, 10);
+        const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = {
             name: `${cleanFirst} ${cleanLast}`.trim(),
             firstName: cleanFirst,
@@ -275,7 +275,7 @@ app.post('/api/login', async (req, res) => {
         let passwordMatch = false;
         if (user && user.password) {
             try {
-                passwordMatch = bcrypt.compareSync(password, user.password);
+                passwordMatch = await bcrypt.compare(password, user.password);
             } catch (_) {
                 passwordMatch = false;
             }
@@ -715,7 +715,7 @@ app.post('/api/users/profile/password', isAuthenticated, async (req, res) => {
 
         let passwordMatch = false;
         try {
-            passwordMatch = !!(user && user.password && bcrypt.compareSync(old_password, user.password));
+            passwordMatch = !!(user && user.password && await bcrypt.compare(old_password, user.password));
         } catch (_) {
             passwordMatch = false;
         }
@@ -730,7 +730,7 @@ app.post('/api/users/profile/password', isAuthenticated, async (req, res) => {
             return res.status(400).json({ error: 'Password must be at least 8 characters' });
         }
 
-        user.password = bcrypt.hashSync(new_password, 10);
+        user.password = await bcrypt.hash(new_password, 10);
         await userStore.add_user(user.email, user);
 
         res.json({ success: true, message: 'Password changed successfully' });

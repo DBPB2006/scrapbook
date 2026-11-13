@@ -2,8 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
-COPY gateway-service/package*.json ./
-RUN npm ci --omit=dev
+COPY gateway-service/package.json ./
+RUN npm install
 
 COPY gateway-service/ ./
 COPY shared/ ./shared/

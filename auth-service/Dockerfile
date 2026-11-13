@@ -2,8 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
-COPY auth-service/package*.json ./
-RUN npm ci --omit=dev
+COPY auth-service/package.json ./
+RUN npm install
 
 COPY auth-service/ ./
 COPY shared/ ./shared/

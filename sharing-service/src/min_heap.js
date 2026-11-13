@@ -1,5 +1,5 @@
 /**
- * Binary Min Heap / Priority Queue implementation for Time Capsule Scheduling (Synopsis §6.3).
+ * Binary Min Heap / Priority Queue implementation for Time Capsule Scheduling.
  * Guarantees O(log N) insert and extractMin operations and O(1) peek.
  * 
  * Space Complexity: O(N)

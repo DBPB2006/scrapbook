@@ -235,7 +235,7 @@ async function delete_memory(memoryId, ownerEmail) {
 }
 
 /**
- * Chronological sorting and pagination DSA utilities (Synopsis §6.3)
+ * Chronological sorting and pagination DSA utilities
  */
 function getMemoryTimestamp(mem) {
     if (mem && mem.date) {

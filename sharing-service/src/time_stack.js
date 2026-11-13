@@ -1,5 +1,5 @@
 /**
- * Stack (LIFO) and Borrow Arithmetic for Time Calculation (Synopsis §6.3).
+ * Stack (LIFO) and Borrow Arithmetic for Time Calculation.
  * Uses LIFO stack operations to compute calendar-accurate countdown differences
  * between timestamps by pushing date components [year, month, day, hour, min, sec]
  * and popping in reverse order (sec -> min -> hr -> day -> mon -> yr) with borrowing.

@@ -2,8 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
-COPY sharing-service/package*.json ./
-RUN npm ci --omit=dev
+COPY sharing-service/package.json ./
+RUN npm install
 
 COPY sharing-service/ ./
 COPY shared/ ./shared/

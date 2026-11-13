@@ -5,7 +5,7 @@ const { Upload } = require("@aws-sdk/lib-storage");
 const { S3Client, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
-let s3Client = new S3Client({ region: process.env.AWS_REGION || 'ap-south-1' });
+const s3Client = new S3Client({ region: process.env.AWS_REGION || 'ap-south-1' });
 
 const DEFAULT_MAX_UPLOAD_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 const DEFAULT_MAX_PROFILE_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB (matches client signup hint)

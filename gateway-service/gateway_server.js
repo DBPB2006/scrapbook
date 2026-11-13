@@ -98,6 +98,19 @@ const authRateLimitMap = new Map();
 const AUTH_WINDOW_MS = 15 * 60 * 1000;
 const AUTH_MAX_ATTEMPTS = 15;
 
+// Periodically prune expired rate-limit records to prevent memory growth
+const authRateLimitPruneInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [ip, record] of authRateLimitMap.entries()) {
+        if (now > record.resetTime) {
+            authRateLimitMap.delete(ip);
+        }
+    }
+}, AUTH_WINDOW_MS);
+if (typeof authRateLimitPruneInterval.unref === 'function') {
+    authRateLimitPruneInterval.unref();
+}
+
 const authRateLimiter = (req, res, next) => {
     if (req.method !== 'POST') return next();
 
@@ -262,6 +275,12 @@ function startServer() {
         if (shuttingDown) return;
         shuttingDown = true;
         console.log('Shutting down gracefully...');
+        const forceTimer = setTimeout(() => {
+            console.warn('Forced shutdown after timeout.');
+            process.exit(0);
+        }, 5000);
+        if (typeof forceTimer.unref === 'function') forceTimer.unref();
+
         const closeServer = (srv) => new Promise((resolve) => {
             if (!srv) return resolve();
             srv.close(() => resolve());
@@ -270,6 +289,7 @@ function startServer() {
             }
         });
         Promise.all([closeServer(server), closeServer(metricsServer)]).then(() => {
+            if (forceTimer) clearTimeout(forceTimer);
             console.log('Closed out remaining connections');
             process.exit(0);
         });

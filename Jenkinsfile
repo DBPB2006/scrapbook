@@ -199,6 +199,8 @@ pipeline {
                     for path in config auth memories social sharing gateway monitoring/prometheus monitoring/grafana; do
                         kubectl apply -f "${DEPLOY_DIR}/${path}/"
                     done
+
+                    kubectl rollout restart deployment/scrapbook-prometheus deployment/scrapbook-grafana -n scrapbook
                 '''
             }
         }

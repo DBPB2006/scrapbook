@@ -200,7 +200,8 @@ pipeline {
                         kubectl apply -f "${DEPLOY_DIR}/${path}/"
                     done
 
-                    kubectl rollout restart deployment/scrapbook-prometheus deployment/scrapbook-grafana -n scrapbook
+                    echo "Deleting old pods in scrapbook namespace to ensure clean recreation..."
+                    kubectl delete pods -n scrapbook --all --wait=false || true
                 '''
             }
         }

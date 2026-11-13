@@ -23,7 +23,7 @@ You can access the website here:
 | **Frontend Web App** | Direct Browser (Public) | [**`http://scrapbook-frontend-883270655099.s3-website.ap-south-1.amazonaws.com`**](http://scrapbook-frontend-883270655099.s3-website.ap-south-1.amazonaws.com) | Open directly in any browser. Served statically from S3. |
 | **Public API (ALB)** | HTTP Port 80 (Public) | `http://<alb_dns_name>` | Internet-facing ALB forwarding to API Gateway (`:30090`). |
 | **Grafana Monitoring** | AWS SSM Port-Forward | `http://localhost:3000` | User: `admin` \| Password: from `grafana-secret` |
-| **Prometheus UI** | AWS SSM Port-Forward | `http://localhost:9090` | View scrape targets at `http://localhost:9090/targets` |
+| **Prometheus UI** | AWS SSM Port-Forward | `http://localhost:9091` (or `:9090`) | View scrape targets at `http://localhost:9091/targets` |
 | **Jenkins CI/CD** | AWS SSM Port-Forward | `http://localhost:8080` | Initial pass from `/var/lib/jenkins/secrets/initialAdminPassword` |
 | **K3s Node Shell** | AWS SSM Session | `aws ssm start-session --target <k3s_instance_id>` | Single-node Kubernetes host in private subnet. |
 | **Database Shell** | AWS SSM Session | `aws ssm start-session --target <mongodb_instance_id>` | MongoDB 8.0 server on private EC2. |
@@ -208,11 +208,13 @@ Prometheus and Grafana run as internal cluster services in the `scrapbook` names
      --target <k3s_instance_id> \
      --region ap-south-1 \
      --document-name AWS-StartPortForwardingSession \
-     --parameters '{"portNumber":["9090"],"localPortNumber":["9090"]}'
+     --parameters '{"portNumber":["9090"],"localPortNumber":["9091"]}'
    ```
-3. Open **[http://localhost:9090](http://localhost:9090)** in your browser.
-   * Scrape target health: **[http://localhost:9090/targets](http://localhost:9090/targets)**
-   * Active condition alert rules: **[http://localhost:9090/alerts](http://localhost:9090/alerts)**
+   *(Forwarding to local port `9091` avoids conflicts with any local process already using port `9090`)*
+
+3. Open **[http://localhost:9091](http://localhost:9091)** in your browser.
+   * Scrape target health: **[http://localhost:9091/targets](http://localhost:9091/targets)**
+   * Active condition alert rules: **[http://localhost:9091/alerts](http://localhost:9091/alerts)**
 
 ---
 

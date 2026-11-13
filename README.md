@@ -92,6 +92,11 @@ To dynamically retrieve the endpoint from Terraform:
 ```bash
 terraform -chdir=terraform output -raw frontend_website_endpoint
 ```
+Open the output URL in any web browser:
+```
+http://<frontend_website_endpoint>
+```
+*(Example: `http://scrapbook-frontend-123456789012.s3-website.ap-south-1.amazonaws.com`)*
 
 ### How Frontend Requests Reach the Backend
 1. **Dynamic Config**: During CI/CD deployment, Jenkins substitutes `<ALB_API_URL>` (from Terraform output `alb_dns_name`) and `<LOCATIONIQ_API_KEY>` into [`client/js/config.js`](./client/js/config.js) before syncing `client/` to the frontend S3 bucket.

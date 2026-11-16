@@ -21,12 +21,13 @@ You can access the website here:
 | Service / Interface | Access Method | URL / Command | Credentials / Notes |
 | :--- | :--- | :--- | :--- |
 | **Frontend Web App** | Direct Browser (Public) | [**`http://scrapbook-frontend-883270655099.s3-website.ap-south-1.amazonaws.com`**](http://scrapbook-frontend-883270655099.s3-website.ap-south-1.amazonaws.com) | Open directly in any browser. Served statically from S3. |
-| **Public API (ALB)** | HTTP Port 80 (Public) | `http://<alb_dns_name>` | Internet-facing ALB forwarding to API Gateway (`:30090`). |
+| **Public API (ALB)** | HTTP Port 80 (Public) | `http://scrapbook-alb-542489058.ap-south-1.elb.amazonaws.com` | Internet-facing ALB forwarding to API Gateway (`:30090`). |
 | **Grafana Monitoring** | AWS SSM Port-Forward | `http://localhost:3000` | User: `admin` \| Password: from `grafana-secret` |
 | **Prometheus UI** | AWS SSM Port-Forward | `http://localhost:9090` | View scrape targets at `http://localhost:9090/targets` |
+| **MongoDB Compass GUI** | AWS SSM Port-Forward | `localhost:27017` | Connect via MongoDB Compass GUI (`scrapbook` DB) |
 | **Jenkins CI/CD** | AWS SSM Port-Forward | `http://localhost:8080` | Initial pass from `/var/lib/jenkins/secrets/initialAdminPassword` |
-| **K3s Node Shell** | AWS SSM Session | `aws ssm start-session --target <k3s_instance_id>` | Single-node Kubernetes host in private subnet. |
-| **Database Shell** | AWS SSM Session | `aws ssm start-session --target <mongodb_instance_id>` | MongoDB 8.0 server on private EC2. |
+| **K3s Node Shell** | AWS SSM Session | `aws ssm start-session --target i-060440cde9cca8f2a` | Single-node Kubernetes host in private subnet. |
+| **Database Shell** | AWS SSM Session | `aws ssm start-session --target i-0d73cd1fd159b2ee8` | MongoDB 8.0 server on private EC2. |
 
 ---
 
@@ -139,71 +140,88 @@ terraform -chdir=terraform output -raw jenkins_instance_id
 ---
 
 ### 2. Connect to the K3s Kubernetes Server
-Get the K3s instance ID:
-```bash
-terraform -chdir=terraform output -raw k3s_instance_id
-```
+* **Instance ID**: `i-060440cde9cca8f2a` (`ap-south-1`)
 
 * **Terminal Shell**:
   ```bash
-  aws ssm start-session --target <k3s_instance_id> --region ap-south-1
+  aws ssm start-session --target i-060440cde9cca8f2a --region ap-south-1
   ```
   *(Remember to use `sudo kubectl ...` or `sudo -i`)*
 
 ---
 
 ### 3. Connect to the MongoDB Database Server
-Get the MongoDB instance ID:
-```bash
-terraform -chdir=terraform output -raw mongodb_instance_id
-```
+* **Instance ID**: `i-0d73cd1fd159b2ee8` (`ap-south-1`)
 
-* **Terminal Shell**:
+* **Option A: Terminal Shell (mongosh on EC2)**:
   ```bash
-  aws ssm start-session --target <mongodb_instance_id> --region ap-south-1
+  aws ssm start-session --target i-0d73cd1fd159b2ee8 --region ap-south-1
   ```
   Connect to the database:
   ```bash
   sudo mongosh -u scrapbook_app -p '<password>' --authenticationDatabase scrapbook scrapbook
   ```
 
+* **Option B: GUI Access via MongoDB Compass (Port Forward to Localhost)**:
+  You can map remote MongoDB port `27017` directly to your local PC port `27017` using AWS SSM:
+  ```bash
+  aws ssm start-session \
+    --target i-0d73cd1fd159b2ee8 \
+    --region ap-south-1 \
+    --document-name AWS-StartPortForwardingSession \
+    --parameters '{"portNumber":["27017"],"localPortNumber":["27017"]}'
+  ```
+  Once active, open **MongoDB Compass** on your PC and connect with:
+  ```text
+  mongodb://scrapbook_app:<password>@localhost:27017/scrapbook?authSource=scrapbook
+  ```
+  *(Or with admin: `mongodb://scrapbook_admin:<admin_password>@localhost:27017/?authSource=admin`)*
+
+  You can now visually browse all collections (`users`, `memories`, `friend_requests`, `time_capsules`, `shared_memories`), run queries, inspect indexes, and monitor live database performance!
+
 ---
 
 ## 4. Accessing Prometheus & Grafana Monitoring
 
-Prometheus and Grafana are exposed via K3s NodePorts (`30091` for Prometheus, `30300` for Grafana). You can forward them directly from your local terminal with a single AWS SSM command (no manual `kubectl port-forward` on the EC2 required!):
+Prometheus and Grafana run inside the private K3s Kubernetes cluster (`i-060440cde9cca8f2a`). Their services are bound to internal NodePorts (`30091` for Prometheus, `30300` for Grafana).
 
-### Accessing Prometheus (Port 9091)
+You can securely port-forward them to your local PC using the AWS Systems Manager (SSM) CLI without exposing any public ports or SSH.
 
-Run from your **local Mac/PC terminal**:
+### Accessing Prometheus (Port 9090)
+
+Run from your **local terminal**:
 ```bash
 aws ssm start-session \
-  --target <k3s_instance_id> \
+  --target i-060440cde9cca8f2a \
   --region ap-south-1 \
   --document-name AWS-StartPortForwardingSession \
-  --parameters '{"portNumber":["30091"],"localPortNumber":["9091"]}'
+  --parameters '{"portNumber":["30091"],"localPortNumber":["9090"]}'
 ```
 Open in your browser:
-* Scrape target health: **[http://localhost:9091/targets](http://localhost:9091/targets)**
-* Active condition alert rules: **[http://localhost:9091/alerts](http://localhost:9091/alerts)**
+* Web UI: **[http://localhost:9090](http://localhost:9090)**
+* Target Health: **[http://localhost:9090/targets](http://localhost:9090/targets)**
+* Active Alerts: **[http://localhost:9090/alerts](http://localhost:9090/alerts)**
 
 ---
 
 ### Accessing Grafana (Port 3000)
 
-Run from your **local Mac/PC terminal**:
+Run from your **local terminal** (in a separate terminal tab):
 ```bash
 aws ssm start-session \
-  --target <k3s_instance_id> \
+  --target i-060440cde9cca8f2a \
   --region ap-south-1 \
   --document-name AWS-StartPortForwardingSession \
   --parameters '{"portNumber":["30300"],"localPortNumber":["3000"]}'
 ```
 Open in your browser:
 * URL: **[http://localhost:3000](http://localhost:3000)**
-* **User**: `admin`
-* **Password**: From `grafana-secret` via `sudo kubectl get secret -n scrapbook grafana-secret -o jsonpath="{.data.admin-password}" | base64 --decode && echo`
-* **Dashboard**: Navigate to **Dashboards > Scrapbook Overview**.
+* **Username**: `admin`
+* **Password**: Retrieve from the K3s host via SSM:
+  ```bash
+  sudo kubectl get secret -n scrapbook grafana-secret -o jsonpath="{.data.admin-password}" | base64 --decode && echo
+  ```
+* **Dashboards**: Navigate to **Dashboards > Scrapbook Overview**.
 
 ---
 
@@ -241,8 +259,8 @@ Defined in [`deployment/monitoring/prometheus/configmap.yaml`](./deployment/moni
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
 terraform init
-terraform plan -out=main.tfplan
-terraform apply main.tfplan
+terraform plan 
+terraform apply
 terraform output
 ```
 

@@ -30,6 +30,17 @@ pipeline {
             }
         }
 
+        stage('Trivy Security Scan') {
+            steps {
+                sh '''
+                    for svc in auth gateway memories social sharing; do
+                        echo "Scanning $svc image for vulnerabilities..."
+                        trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 ${ECR_REGISTRY}/scrapbook-${svc}:${IMAGE_TAG}
+                    done
+                '''
+            }
+        }
+
         stage('Push to ECR') {
             steps {
                 sh '''
